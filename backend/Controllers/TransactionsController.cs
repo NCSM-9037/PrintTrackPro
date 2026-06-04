@@ -61,7 +61,7 @@ namespace PrintTrackPro.Backend.Controllers
                 decimal totalPaid = request.CashAmount + request.GooglePayAmount;
                 decimal remainingDebt = request.TotalAmount - totalPaid;
 
-                if (remainingDebt > 0)
+                if (remainingDebt != 0)
                 {
                     var existingDebt = await _context.Debts.FirstOrDefaultAsync(d => d.StudentId == request.StudentId);
                     if (existingDebt != null)
@@ -105,6 +105,79 @@ namespace PrintTrackPro.Backend.Controllers
                 return StatusCode(500, $"Internal server error: {ex.Message}");
             }
         }
+
+        [HttpPut("{id}/payment")]
+        public async Task<IActionResult> UpdateTransactionPayment(int id, [FromBody] UpdatePaymentDto request)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var tx = await _context.Transactions.FindAsync(id);
+                if (tx == null) return NotFound("Transaction not found");
+
+                var payment = await _context.Payments.FirstOrDefaultAsync(p => p.TransactionId == id);
+                if (payment == null) return NotFound("Payment record not found");
+
+                // 1. Revert old debt effect
+                decimal oldTotalPaid = payment.CashAmount + payment.GooglePayAmount;
+                decimal oldDebtEffect = tx.TotalAmount - oldTotalPaid;
+                
+                var existingDebt = await _context.Debts.FirstOrDefaultAsync(d => d.StudentId == tx.StudentId);
+                if (existingDebt != null)
+                {
+                    existingDebt.Amount -= oldDebtEffect; // Revert
+                }
+
+                // 2. Update payment amounts
+                decimal newCashAmount = request.CashAmount - request.GivenBackAmount;
+                decimal newGpayAmount = request.GooglePayAmount;
+
+                payment.CashAmount = newCashAmount;
+                payment.GooglePayAmount = newGpayAmount;
+                _context.Payments.Update(payment);
+
+                // 3. Apply new debt effect
+                decimal newTotalPaid = newCashAmount + newGpayAmount;
+                decimal newDebtEffect = tx.TotalAmount - newTotalPaid;
+
+                if (existingDebt != null)
+                {
+                    existingDebt.Amount += newDebtEffect;
+                    _context.Debts.Update(existingDebt);
+                }
+                else if (newDebtEffect != 0)
+                {
+                    var debt = new Debt
+                    {
+                        StudentId = tx.StudentId,
+                        Amount = newDebtEffect,
+                        LastPrintDate = DateTime.UtcNow,
+                        Status = "Pending"
+                    };
+                    _context.Debts.Add(debt);
+                }
+
+                // 4. Create Audit Log
+                var audit = new AuditLog
+                {
+                    Action = "UpdatePayment",
+                    Entity = "Transaction",
+                    EntityId = tx.Id,
+                    Details = $"Updated payment to Cash: {newCashAmount}, GPay: {newGpayAmount} (Given back: {request.GivenBackAmount})"
+                };
+                _context.AuditLogs.Add(audit);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(payment);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
     }
 
     public class ProcessTransactionDto
@@ -116,5 +189,12 @@ namespace PrintTrackPro.Backend.Controllers
         public string Description { get; set; } = string.Empty;
         public decimal CashAmount { get; set; }
         public decimal GooglePayAmount { get; set; }
+    }
+
+    public class UpdatePaymentDto
+    {
+        public decimal CashAmount { get; set; }
+        public decimal GooglePayAmount { get; set; }
+        public decimal GivenBackAmount { get; set; }
     }
 }
