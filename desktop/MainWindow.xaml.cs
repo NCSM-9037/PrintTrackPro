@@ -1,23 +1,70 @@
-﻿using System.Text;
+using System;
+using System.Management;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
-namespace PrintTrackPro.Desktop;
-
-/// <summary>
-/// Interaction logic for MainWindow.xaml
-/// </summary>
-public partial class MainWindow : Window
+namespace PrintTrackPro.Desktop
 {
-    public MainWindow()
+    public partial class MainWindow : Window
     {
-        InitializeComponent();
+        private ManagementEventWatcher watcher;
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            
+            // Hide the main window so it runs silently in the background
+            this.Hide();
+            this.ShowInTaskbar = false;
+            
+            StartPrintWatcher();
+        }
+
+        private void StartPrintWatcher()
+        {
+            try
+            {
+                string query = "SELECT * FROM __InstanceCreationEvent WITHIN 1 WHERE TargetInstance ISA 'Win32_PrintJob'";
+                watcher = new ManagementEventWatcher(new WqlEventQuery(query));
+                watcher.EventArrived += PrintJobArrived;
+                watcher.Start();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error starting Print Monitor: " + ex.Message);
+            }
+        }
+
+        private void PrintJobArrived(object sender, EventArrivedEventArgs e)
+        {
+            try
+            {
+                ManagementBaseObject targetInstance = (ManagementBaseObject)e.NewEvent["TargetInstance"];
+                
+                string document = targetInstance["Document"]?.ToString() ?? "Unknown Document";
+                int pages = 0;
+                if (targetInstance["TotalPages"] != null)
+                {
+                    int.TryParse(targetInstance["TotalPages"].ToString(), out pages);
+                }
+
+                // Since this runs on a background thread, we must invoke the UI thread to show the popup
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    var dialog = new PrintDialogWindow(document, pages);
+                    dialog.ShowDialog();
+                });
+            }
+            catch
+            {
+                // Ignore silent errors from spooler
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            watcher?.Stop();
+            watcher?.Dispose();
+            base.OnClosed(e);
+        }
     }
 }
