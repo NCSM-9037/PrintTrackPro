@@ -116,7 +116,7 @@ namespace PrintTrackPro.Desktop
         private void BtnCharge_Click(object sender, RoutedEventArgs e)
         {
             GatekeeperPanel.Visibility = Visibility.Collapsed;
-            BillingPanel.Visibility = Visibility.Visible;
+            StudentPanel.Visibility = Visibility.Visible;
             
             // Instantly load from cache instead of waiting for API!
             allBatches = DataCache.Batches.ToList();
@@ -125,12 +125,12 @@ namespace PrintTrackPro.Desktop
             if (allBatches.Any())
             {
                 ComboBatches.ItemsSource = allBatches;
-                TxtStatus.Text = "";
+                TxtStudentStatus.Text = "";
             }
             else
             {
-                // Fallback if cache is empty (e.g. they opened it literally 1 second after starting the PC)
-                TxtStatus.Text = "Data is syncing in the background, please wait a moment and try again...";
+                // Fallback if cache is empty
+                TxtStudentStatus.Text = "Data is syncing in the background, please wait a moment...";
                 _ = DataCache.FetchDataAsync().ContinueWith(t => 
                 {
                     Dispatcher.Invoke(() => 
@@ -138,10 +138,30 @@ namespace PrintTrackPro.Desktop
                         allBatches = DataCache.Batches.ToList();
                         allStudents = DataCache.Students.ToList();
                         ComboBatches.ItemsSource = allBatches;
-                        TxtStatus.Text = "";
+                        TxtStudentStatus.Text = "";
                     });
                 });
             }
+        }
+
+        private void BtnProceed_Click(object sender, RoutedEventArgs e)
+        {
+            if (ComboStudents.SelectedValue == null)
+            {
+                TxtStudentStatus.Text = "Please select a student first.";
+                return;
+            }
+
+            // Student selected! Start the printer physically printing to save time!
+            try { _printJob?.InvokeMethod("Resume", null); } catch {}
+            
+            // Move to final billing details
+            StudentPanel.Visibility = Visibility.Collapsed;
+            DetailsPanel.Visibility = Visibility.Visible;
+            
+            TxtHeader.Text = "Enter Print Details";
+            TxtSubHeader.Text = "The document is now printing. Please count the pages.";
+            TxtSubHeader.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 185, 129)); // Emerald Green
         }
 
         private void BtnNoFees_Click(object sender, RoutedEventArgs e)
@@ -275,13 +295,6 @@ namespace PrintTrackPro.Desktop
         {
             if (sender is Button btn) btn.IsEnabled = false;
 
-            if (ComboStudents.SelectedValue == null)
-            {
-                TxtStatus.Text = "Please select a student.";
-                if (sender is Button b) b.IsEnabled = true;
-                return;
-            }
-
             if (!int.TryParse(TxtPages.Text, out int pages) || !decimal.TryParse(TxtCost.Text, out decimal cost))
             {
                 TxtStatus.Text = "Please enter valid numbers for Pages and Cost.";
@@ -316,9 +329,7 @@ namespace PrintTrackPro.Desktop
                 
                 if (response.IsSuccessStatusCode)
                 {
-                    MessageBox.Show("Saved successfully to the cloud!", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                     _allowClose = true;
-                    try { _printJob?.InvokeMethod("Resume", null); } catch {}
                     this.Close();
                 }
                 else
