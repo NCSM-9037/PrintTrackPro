@@ -14,7 +14,7 @@ const PrintersList = () => {
 
   const fetchPrinters = async () => {
     try {
-      const res = await axios.get('http://localhost:5015/api/printers');
+      const res = await axios.get('https://printtrack-pro-api.onrender.com/api/printers');
       setPrinters(res.data);
     } catch (error) {
       console.error("Error fetching printers", error);
@@ -28,7 +28,7 @@ const PrintersList = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5015/api/printers', {
+      await axios.post('https://printtrack-pro-api.onrender.com/api/printers', {
         ...formData,
         blackWhiteRate: parseFloat(formData.blackWhiteRate),
         colorRate: parseFloat(formData.colorRate)

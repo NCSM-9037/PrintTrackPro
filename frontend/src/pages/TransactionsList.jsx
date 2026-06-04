@@ -9,7 +9,7 @@ const TransactionsList = () => {
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
-        const res = await axios.get('http://localhost:5015/api/transactions');
+        const res = await axios.get('https://printtrack-pro-api.onrender.com/api/transactions');
         setTransactions(res.data);
       } catch (error) {
         console.error("Error fetching transactions", error);

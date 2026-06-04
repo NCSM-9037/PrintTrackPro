@@ -9,7 +9,7 @@ const StudentsList = () => {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        const res = await axios.get('http://localhost:5015/api/students');
+        const res = await axios.get('https://printtrack-pro-api.onrender.com/api/students');
         setStudents(res.data);
       } catch (error) {
         console.error("Error fetching students", error);

@@ -16,8 +16,8 @@ const Dashboard = () => {
     const fetchStats = async () => {
       try {
         const [studentsRes, printersRes] = await Promise.all([
-          axios.get('http://localhost:5015/api/students', { verify: false }),
-          axios.get('http://localhost:5015/api/printers', { verify: false })
+          axios.get('https://printtrack-pro-api.onrender.com/api/students', { verify: false }),
+          axios.get('https://printtrack-pro-api.onrender.com/api/printers', { verify: false })
         ]);
         
         const students = studentsRes.data;
