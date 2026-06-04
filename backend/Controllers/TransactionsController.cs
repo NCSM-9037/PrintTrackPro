@@ -178,6 +178,69 @@ namespace PrintTrackPro.Backend.Controllers
                 return StatusCode(500, $"Internal server error: {ex.Message}");
             }
         }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteTransaction(int id)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var tx = await _context.Transactions.FindAsync(id);
+                if (tx == null) return NotFound("Transaction not found");
+
+                var payment = await _context.Payments.FirstOrDefaultAsync(p => p.TransactionId == id);
+                
+                if (payment != null)
+                {
+                    decimal totalPaid = payment.CashAmount + payment.GooglePayAmount;
+                    decimal debtEffect = tx.TotalAmount - totalPaid;
+
+                    if (debtEffect != 0)
+                    {
+                        var existingDebt = await _context.Debts.FirstOrDefaultAsync(d => d.StudentId == tx.StudentId);
+                        if (existingDebt != null)
+                        {
+                            existingDebt.Amount -= debtEffect;
+                            _context.Debts.Update(existingDebt);
+                        }
+                        else 
+                        {
+                            var debt = new Debt
+                            {
+                                StudentId = tx.StudentId,
+                                Amount = -debtEffect,
+                                LastPrintDate = DateTime.UtcNow,
+                                Status = "Pending"
+                            };
+                            _context.Debts.Add(debt);
+                        }
+                    }
+
+                    _context.Payments.Remove(payment);
+                }
+
+                _context.Transactions.Remove(tx);
+
+                var audit = new AuditLog
+                {
+                    Action = "DeleteTransaction",
+                    Entity = "Transaction",
+                    EntityId = tx.Id,
+                    Details = $"Deleted transaction {id} (Cost: {tx.TotalAmount})"
+                };
+                _context.AuditLogs.Add(audit);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new { message = "Transaction deleted successfully" });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
     }
 
     public class ProcessTransactionDto
