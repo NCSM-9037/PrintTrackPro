@@ -41,7 +41,7 @@ namespace PrintTrackPro.Desktop
         {
             try
             {
-                ManagementBaseObject targetInstance = (ManagementBaseObject)e.NewEvent["TargetInstance"];
+                ManagementObject targetInstance = (ManagementObject)e.NewEvent["TargetInstance"];
                 
                 string document = targetInstance["Document"]?.ToString() ?? "Unknown Document";
                 int pages = 0;
@@ -64,10 +64,20 @@ namespace PrintTrackPro.Desktop
                     }
                 }
 
+                // IMPORTANT: Physically PAUSE the print job in the spooler so it doesn't print!
+                try
+                {
+                    targetInstance.InvokeMethod("Pause", null);
+                }
+                catch
+                {
+                    // If pausing fails, we still show the popup
+                }
+
                 // Since this runs on a background thread, we must invoke the UI thread to show the popup
                 Application.Current.Dispatcher.Invoke(() =>
                 {
-                    var dialog = new PrintDialogWindow(document, pages);
+                    var dialog = new PrintDialogWindow(document, pages, targetInstance);
                     dialog.ShowDialog();
                 });
             }

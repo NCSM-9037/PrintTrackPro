@@ -1,102 +1,119 @@
 <Window x:Class="PrintTrackPro.Desktop.PrintDialogWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="PrintTrackPro - Print Intercepted!" SizeToContent="Height" Width="450"
-        WindowStartupLocation="CenterScreen" Topmost="True" ResizeMode="NoResize" Background="#F8FAFC">
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="Print Job Detected" FontSize="24" FontWeight="Bold" Foreground="#1E293B"/>
-            <TextBlock x:Name="DocumentNameText" Text="Document: Loading..." FontSize="14" Foreground="#64748B" TextWrapping="Wrap" Margin="0,5,0,0"/>
-        </StackPanel>
-
-        <!-- Gatekeeper Panel (Screen 1) -->
-        <StackPanel x:Name="GatekeeperPanel" Grid.Row="1" Visibility="Visible">
-            <TextBlock Text="Do you want to charge a student for this print?" FontSize="16" Foreground="#334155" Margin="0,0,0,20" TextWrapping="Wrap"/>
+        Title="PrintTrackPro - Print Intercepted!" 
+        WindowState="Maximized" WindowStyle="None" Topmost="True" Background="#E6000000">
+    <Grid>
+        <!-- Centered Dialog Box -->
+        <Border Background="#F8FAFC" CornerRadius="12" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" Width="450">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" Opacity="0.4" BlurRadius="25" ShadowDepth="0"/>
+            </Border.Effect>
             
-            <Button Content="Charge Print Fees" Height="45" Background="#3B82F6" Foreground="White" FontSize="16" FontWeight="SemiBold" Click="BtnCharge_Click" Margin="0,0,0,10">
-                <Button.Resources>
-                    <Style TargetType="Border">
-                        <Setter Property="CornerRadius" Value="8"/>
-                    </Style>
-                </Button.Resources>
-            </Button>
-            
-            <Button Content="No Fees (Ignore)" Height="45" Background="#E2E8F0" Foreground="#475569" FontSize="16" FontWeight="SemiBold" Click="BtnNoFees_Click">
-                <Button.Resources>
-                    <Style TargetType="Border">
-                        <Setter Property="CornerRadius" Value="8"/>
-                    </Style>
-                </Button.Resources>
-            </Button>
-        </StackPanel>
-
-        <!-- Billing Form Panel (Screen 2) -->
-        <StackPanel x:Name="BillingPanel" Grid.Row="1" Visibility="Collapsed">
-            
-            <TextBlock Text="Select Batch:" FontWeight="SemiBold" Margin="0,0,0,5"/>
-            <ComboBox x:Name="ComboBatches" Height="35" Margin="0,0,0,15" SelectionChanged="ComboBatches_SelectionChanged" DisplayMemberPath="BatchName" SelectedValuePath="Id" />
-
-            <TextBlock Text="Search Student Name:" FontWeight="SemiBold" Margin="0,0,0,5"/>
-            <TextBox x:Name="TxtStudentSearch" Height="35" VerticalContentAlignment="Center" Padding="5,0" Margin="0,0,0,10" TextChanged="TxtStudentSearch_TextChanged" />
-
-            <TextBlock Text="Select Student:" FontWeight="SemiBold" Margin="0,0,0,5"/>
-            <ComboBox x:Name="ComboStudents" Height="35" Margin="0,0,0,15" DisplayMemberPath="Name" SelectedValuePath="Id" />
-
-            <TextBlock Text="Print Type (Auto-Calc):" FontWeight="SemiBold" Margin="0,0,0,5"/>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
-                <RadioButton x:Name="RadioSingle" Content="Single Sided" GroupName="PrintType" Margin="0,0,10,0" IsChecked="True" Checked="PrintType_Changed"/>
-                <RadioButton x:Name="RadioDouble" Content="Double Sided" GroupName="PrintType" Margin="0,0,10,0" Checked="PrintType_Changed"/>
-                <RadioButton x:Name="RadioBooklet" Content="Booklet" GroupName="PrintType" Checked="PrintType_Changed"/>
-            </StackPanel>
-
-            <Grid Margin="0,0,0,15">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="10"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="Pages Printed:" FontWeight="SemiBold" Margin="0,0,0,5"/>
-                    <TextBox x:Name="TxtPages" Height="35" VerticalContentAlignment="Center" Padding="5,0" TextChanged="TxtPages_TextChanged"/>
-                </StackPanel>
-
-                <StackPanel Grid.Column="2">
-                    <TextBlock Text="Rupees (Cost):" FontWeight="SemiBold" Margin="0,0,0,5"/>
-                    <TextBox x:Name="TxtCost" Height="35" VerticalContentAlignment="Center" Padding="5,0" TextChanged="TxtCost_TextChanged"/>
-                </StackPanel>
-            </Grid>
-
-            <TextBlock Text="Description:" FontWeight="SemiBold" Margin="0,0,0,5"/>
-            <TextBox x:Name="TxtDescription" Height="60" TextWrapping="Wrap" Margin="0,0,0,20" Padding="5"/>
-
-            <TextBlock Text="Payment Status:" FontWeight="SemiBold" Margin="0,0,0,10"/>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                <RadioButton x:Name="RadioNotPaid" Content="Not Paid" GroupName="Payment" Margin="0,0,15,0" IsChecked="True" Checked="PaymentMethod_Changed"/>
-                <RadioButton x:Name="RadioPaid" Content="Paid (Cash)" GroupName="Payment" Margin="0,0,15,0" Checked="PaymentMethod_Changed"/>
-                <RadioButton x:Name="RadioGpay" Content="Google Pay" GroupName="Payment" Checked="PaymentMethod_Changed"/>
-            </StackPanel>
-
-            <Image x:Name="ImgQrCode" Width="150" Height="150" Margin="0,0,0,15" Visibility="Collapsed"/>
-
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="10"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" Content="Cancel" Height="40" Background="#E2E8F0" Foreground="#475569" FontWeight="SemiBold" Click="BtnNoFees_Click"/>
-                <Button Grid.Column="2" Content="Submit Charge" Height="40" Background="#10B981" Foreground="White" FontWeight="SemiBold" Click="BtnSubmit_Click"/>
-            </Grid>
-            <TextBlock x:Name="TxtStatus" Foreground="#EF4444" Margin="0,10,0,0" TextWrapping="Wrap"/>
-        </StackPanel>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
+                <!-- Header -->
+                <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                    <TextBlock Text="Print Job Paused" FontSize="26" FontWeight="Bold" Foreground="#1E293B" HorizontalAlignment="Center"/>
+                    <TextBlock Text="The printer is locked until you submit." FontSize="14" FontWeight="SemiBold" Foreground="#EF4444" HorizontalAlignment="Center" Margin="0,5,0,10"/>
+                    <TextBlock x:Name="DocumentNameText" Text="Document: Loading..." FontSize="14" Foreground="#64748B" TextWrapping="Wrap" HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Gatekeeper Panel (Screen 1) -->
+                <StackPanel x:Name="GatekeeperPanel" Grid.Row="1" Visibility="Visible">
+                    <TextBlock Text="How do you want to handle this print?" FontSize="16" Foreground="#334155" Margin="0,0,0,20" TextWrapping="Wrap" HorizontalAlignment="Center"/>
+                    
+                    <Button Content="Charge Print Fees" Height="45" Background="#3B82F6" Foreground="White" FontSize="16" FontWeight="SemiBold" Click="BtnCharge_Click" Margin="0,0,0,10">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="8"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                    
+                    <Button Content="No Fees (Print for Free)" Height="45" Background="#E2E8F0" Foreground="#475569" FontSize="16" FontWeight="SemiBold" Click="BtnNoFees_Click" Margin="0,0,0,10">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="8"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+
+                    <Button Content="Cancel Print (Delete Job)" Height="45" Background="#EF4444" Foreground="White" FontSize="16" FontWeight="SemiBold" Click="BtnCancelPrint_Click">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="8"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </StackPanel>
+
+                <!-- Billing Form Panel (Screen 2) -->
+                <StackPanel x:Name="BillingPanel" Grid.Row="1" Visibility="Collapsed">
+                    
+                    <TextBlock Text="Select Batch:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                    <ComboBox x:Name="ComboBatches" Height="35" Margin="0,0,0,15" SelectionChanged="ComboBatches_SelectionChanged" DisplayMemberPath="BatchName" SelectedValuePath="Id" />
+
+                    <TextBlock Text="Search Student Name:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                    <TextBox x:Name="TxtStudentSearch" Height="35" VerticalContentAlignment="Center" Padding="5,0" Margin="0,0,0,10" TextChanged="TxtStudentSearch_TextChanged" />
+
+                    <TextBlock Text="Select Student:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                    <ComboBox x:Name="ComboStudents" Height="35" Margin="0,0,0,15" DisplayMemberPath="Name" SelectedValuePath="Id" />
+
+                    <TextBlock Text="Print Type (Auto-Calc):" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
+                        <RadioButton x:Name="RadioSingle" Content="Single Sided" GroupName="PrintType" Margin="0,0,10,0" IsChecked="True" Checked="PrintType_Changed"/>
+                        <RadioButton x:Name="RadioDouble" Content="Double Sided" GroupName="PrintType" Margin="0,0,10,0" Checked="PrintType_Changed"/>
+                        <RadioButton x:Name="RadioBooklet" Content="Booklet" GroupName="PrintType" Checked="PrintType_Changed"/>
+                    </StackPanel>
+
+                    <Grid Margin="0,0,0,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Pages Printed:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                            <TextBox x:Name="TxtPages" Height="35" VerticalContentAlignment="Center" Padding="5,0" TextChanged="TxtPages_TextChanged"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Rupees (Cost):" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                            <TextBox x:Name="TxtCost" Height="35" VerticalContentAlignment="Center" Padding="5,0" TextChanged="TxtCost_TextChanged"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="Description:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                    <TextBox x:Name="TxtDescription" Height="60" TextWrapping="Wrap" Margin="0,0,0,20" Padding="5"/>
+
+                    <TextBlock Text="Payment Status:" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <RadioButton x:Name="RadioNotPaid" Content="Not Paid" GroupName="Payment" Margin="0,0,15,0" IsChecked="True" Checked="PaymentMethod_Changed"/>
+                        <RadioButton x:Name="RadioPaid" Content="Paid (Cash)" GroupName="Payment" Margin="0,0,15,0" Checked="PaymentMethod_Changed"/>
+                        <RadioButton x:Name="RadioGpay" Content="Google Pay" GroupName="Payment" Checked="PaymentMethod_Changed"/>
+                    </StackPanel>
+
+                    <Image x:Name="ImgQrCode" Width="150" Height="150" Margin="0,0,0,15" Visibility="Collapsed" HorizontalAlignment="Center"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="Cancel Print" Height="40" Background="#EF4444" Foreground="White" FontWeight="SemiBold" Click="BtnCancelPrint_Click"/>
+                        <Button Grid.Column="2" Content="Submit Charge" Height="40" Background="#10B981" Foreground="White" FontWeight="SemiBold" Click="BtnSubmit_Click"/>
+                    </Grid>
+                    <TextBlock x:Name="TxtStatus" Foreground="#EF4444" Margin="0,10,0,0" TextWrapping="Wrap" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

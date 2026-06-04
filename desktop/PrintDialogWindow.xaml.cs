@@ -9,6 +9,10 @@ using System.Linq;
 using System.IO;
 using System.Windows.Media.Imaging;
 using QRCoder;
+using System.Management;
+using System.Runtime.InteropServices;
+using System.Windows.Input;
+using System.ComponentModel;
 
 namespace PrintTrackPro.Desktop
 {
@@ -17,21 +21,96 @@ namespace PrintTrackPro.Desktop
         private static readonly HttpClient client = new HttpClient { BaseAddress = new Uri("https://printtrack-pro-api.onrender.com/api/") };
         private List<Batch> allBatches = new();
         private List<Student> allStudents = new();
+        private ManagementObject _printJob;
+        private bool _allowClose = false;
+        
+        // --- KEYBOARD HOOK STUFF ---
+        private const int WH_KEYBOARD_LL = 13;
+        private const int WM_KEYDOWN = 0x0100;
+        private const int WM_SYSKEYDOWN = 0x0104;
+        private LowLevelKeyboardProc _proc;
+        private IntPtr _hookID = IntPtr.Zero;
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr GetModuleHandle(string lpModuleName);
+
+        private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+        // ---------------------------
         
         public string DocumentName { get; set; }
         public int AutoPages { get; set; }
 
-        public PrintDialogWindow(string documentName, int pages)
+        public PrintDialogWindow(string documentName, int pages, ManagementObject printJob = null)
         {
             InitializeComponent();
+            _proc = HookCallback;
             DocumentName = documentName;
             AutoPages = pages;
+            _printJob = printJob;
             
             DocumentNameText.Text = $"Document: {DocumentName}";
             TxtPages.Text = AutoPages > 0 ? AutoPages.ToString() : "";
             TxtDescription.Text = DocumentName;
             
             RecalculateCost(); // Initial calculation
+
+            this.Loaded += (s, e) => { _hookID = SetHook(_proc); };
+            this.Closed += (s, e) => { UnhookWindowsHookEx(_hookID); };
+        }
+
+        private IntPtr SetHook(LowLevelKeyboardProc proc)
+        {
+            using (var curProcess = System.Diagnostics.Process.GetCurrentProcess())
+            using (var curModule = curProcess.MainModule)
+            {
+                return SetWindowsHookEx(WH_KEYBOARD_LL, proc, GetModuleHandle(curModule.ModuleName), 0);
+            }
+        }
+
+        private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
+            {
+                int vkCode = Marshal.ReadInt32(lParam);
+                Key key = KeyInterop.KeyFromVirtualKey(vkCode);
+
+                bool isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+                bool isShift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+                bool isAlt = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+
+                if (isCtrl && isShift && key == Key.Q)
+                {
+                    _allowClose = true;
+                    try { _printJob?.InvokeMethod("Resume", null); } catch {}
+                    this.Close();
+                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                }
+
+                if (key == Key.LWin || key == Key.RWin || (isAlt && key == Key.Tab) || (isAlt && key == Key.F4) || key == Key.System)
+                {
+                    return (IntPtr)1; // Block
+                }
+            }
+            return CallNextHookEx(_hookID, nCode, wParam, lParam);
+        }
+
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            if (!_allowClose)
+            {
+                e.Cancel = true;
+            }
+            base.OnClosing(e);
         }
 
         private void BtnCharge_Click(object sender, RoutedEventArgs e)
@@ -67,6 +146,15 @@ namespace PrintTrackPro.Desktop
 
         private void BtnNoFees_Click(object sender, RoutedEventArgs e)
         {
+            _allowClose = true;
+            try { _printJob?.InvokeMethod("Resume", null); } catch {}
+            this.Close();
+        }
+        
+        private void BtnCancelPrint_Click(object sender, RoutedEventArgs e)
+        {
+            _allowClose = true;
+            try { _printJob?.InvokeMethod("Delete", null); } catch {}
             this.Close();
         }
 
@@ -229,6 +317,8 @@ namespace PrintTrackPro.Desktop
                 if (response.IsSuccessStatusCode)
                 {
                     MessageBox.Show("Saved successfully to the cloud!", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    _allowClose = true;
+                    try { _printJob?.InvokeMethod("Resume", null); } catch {}
                     this.Close();
                 }
                 else
