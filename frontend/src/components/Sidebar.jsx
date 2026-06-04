@@ -7,9 +7,7 @@ const Sidebar = () => {
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Students', path: '/students', icon: Users },
-    { name: 'Batches', path: '/batches', icon: Users },
-    { name: 'Printers', path: '/printers', icon: Printer },
-    { name: 'Transactions', path: '/transactions', icon: Receipt },
+    { name: 'Individual Reports', path: '/reports', icon: Receipt },
   ];
 
   return (

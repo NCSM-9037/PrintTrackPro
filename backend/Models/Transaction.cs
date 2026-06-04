@@ -18,6 +18,7 @@ namespace PrintTrackPro.Backend.Models
         
         public string Description { get; set; } = string.Empty;
         public decimal TotalAmount { get; set; }
+        public int Pages { get; set; }
         public DateTime Date { get; set; } = DateTime.UtcNow;
     }
 }

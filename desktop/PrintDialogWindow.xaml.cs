@@ -109,6 +109,7 @@ namespace PrintTrackPro.Desktop
                     StudentId = studentId, 
                     BatchId = batchId,
                     TotalAmount = cost, 
+                    Pages = pages,
                     Description = description,
                     CashAmount = isCash ? cost : 0,
                     GooglePayAmount = isGpay ? cost : 0

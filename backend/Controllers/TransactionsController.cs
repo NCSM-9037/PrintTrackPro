@@ -38,6 +38,7 @@ namespace PrintTrackPro.Backend.Controllers
                     StudentId = request.StudentId,
                     BatchId = request.BatchId,
                     TotalAmount = request.TotalAmount,
+                    Pages = request.Pages,
                     Description = request.Description,
                     Date = DateTime.UtcNow
                 };
@@ -111,6 +112,7 @@ namespace PrintTrackPro.Backend.Controllers
         public int StudentId { get; set; }
         public int BatchId { get; set; }
         public decimal TotalAmount { get; set; }
+        public int Pages { get; set; }
         public string Description { get; set; } = string.Empty;
         public decimal CashAmount { get; set; }
         public decimal GooglePayAmount { get; set; }
