@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using PrintTrackPro.Backend.Data;
+using PrintTrackPro.Backend.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +29,10 @@ builder.Services.AddCors(options =>
 // Configure Entity Framework Core with PostgreSQL
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.Configure<FirebaseSyncOptions>(builder.Configuration.GetSection("FirebaseSync"));
+builder.Services.AddSingleton<IFirebaseStudentSyncService, FirebaseStudentSyncService>();
+builder.Services.AddHostedService<FirebaseStudentSyncHostedService>();
 
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
