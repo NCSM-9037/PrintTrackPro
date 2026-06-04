@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 
 const Students = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBatch, setSelectedBatch] = useState('all');
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -19,14 +22,48 @@ const Students = () => {
     fetchStudents();
   }, []);
 
+  const batches = useMemo(() => {
+    const uniqueBatches = new Set(students.map(s => s.batchName));
+    return Array.from(uniqueBatches).sort();
+  }, [students]);
+
+  const filteredStudents = useMemo(() => {
+    return students.filter(s => {
+      const matchName = s.studentName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchBatch = selectedBatch === 'all' || s.batchName === selectedBatch;
+      return matchName && matchBatch;
+    });
+  }, [students, searchTerm, selectedBatch]);
+
   if (loading) {
     return <div className="p-8 text-white">Loading students...</div>;
   }
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold text-white">Students Financial Report</h1>
+        
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <input 
+            type="text"
+            placeholder="Search student name..."
+            className="bg-surface border border-border text-white rounded-lg px-4 py-2 outline-none focus:border-primary transition-colors w-full sm:w-auto"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          
+          <select 
+            className="bg-surface border border-border text-white rounded-lg px-4 py-2 outline-none focus:border-primary transition-colors w-full sm:w-auto"
+            value={selectedBatch}
+            onChange={(e) => setSelectedBatch(e.target.value)}
+          >
+            <option value="all">-- All Batches --</option>
+            {batches.map(b => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="bg-surface border border-border rounded-2xl overflow-hidden">
@@ -44,7 +81,7 @@ const Students = () => {
               </tr>
             </thead>
             <tbody>
-              {students.map((student) => (
+              {filteredStudents.map((student) => (
                 <tr key={student.studentId} className="border-b border-border hover:bg-surfaceHighlight/50 transition-colors">
                   <td className="p-4 font-medium text-white">{student.studentName}</td>
                   <td className="p-4 text-textMuted">{student.batchName}</td>
@@ -55,7 +92,7 @@ const Students = () => {
                   <td className="p-4 text-emerald-400/90 text-right">{student.totalGPayPaid.toFixed(2)}</td>
                 </tr>
               ))}
-              {students.length === 0 && (
+              {filteredStudents.length === 0 && (
                 <tr>
                   <td colSpan="7" className="p-8 text-center text-textMuted">No students found.</td>
                 </tr>
