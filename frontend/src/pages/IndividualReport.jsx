@@ -7,6 +7,22 @@ const IndividualReport = () => {
   const [selectedStudentId, setSelectedStudentId] = useState('all');
   const [loading, setLoading] = useState(true);
 
+  // Edit Modal State
+  const [editingTx, setEditingTx] = useState(null);
+  const [editCash, setEditCash] = useState('');
+  const [editGPay, setEditGPay] = useState('');
+  const [editGivenBack, setEditGivenBack] = useState('0');
+  const [editLoading, setEditLoading] = useState(false);
+
+  const fetchTransactions = async () => {
+    try {
+      const res = await axios.get('https://printtrack-pro-api.onrender.com/api/reports/transactions');
+      setTransactions(res.data);
+    } catch (error) {
+      console.error("Error fetching transactions", error);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -17,13 +33,39 @@ const IndividualReport = () => {
         setTransactions(txRes.data);
         setStudents(studentsRes.data);
       } catch (error) {
-        console.error("Error fetching individual reports", error);
+        console.error("Error fetching data", error);
       } finally {
         setLoading(false);
       }
     };
     fetchData();
   }, []);
+
+  const handleEditClick = (tx) => {
+    setEditingTx(tx);
+    setEditCash(tx.cashAmount.toString());
+    setEditGPay(tx.gPayAmount.toString());
+    setEditGivenBack('0');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingTx) return;
+    setEditLoading(true);
+    try {
+      await axios.put(`https://printtrack-pro-api.onrender.com/api/transactions/${editingTx.transactionId}/payment`, {
+        cashAmount: parseFloat(editCash) || 0,
+        googlePayAmount: parseFloat(editGPay) || 0,
+        givenBackAmount: parseFloat(editGivenBack) || 0
+      });
+      await fetchTransactions(); // Refresh
+      setEditingTx(null);
+    } catch (error) {
+      console.error("Error saving payment", error);
+      alert("Failed to save changes.");
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   const filteredTransactions = useMemo(() => {
     if (selectedStudentId === 'all') return transactions;
@@ -67,6 +109,7 @@ const IndividualReport = () => {
                 <th className="p-4 text-sm font-semibold text-emerald-400 text-right">Cash Paid (₹)</th>
                 <th className="p-4 text-sm font-semibold text-emerald-400 text-right">GPay Paid (₹)</th>
                 <th className="p-4 text-sm font-semibold text-rose-400 text-right">Unpaid (₹)</th>
+                <th className="p-4 text-sm font-semibold text-textMuted text-center">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -81,19 +124,103 @@ const IndividualReport = () => {
                     <td className="p-4 text-white font-medium text-right">{tx.totalAmount.toFixed(2)}</td>
                     <td className="p-4 text-emerald-400/90 text-right">{tx.cashAmount.toFixed(2)}</td>
                     <td className="p-4 text-emerald-400/90 text-right">{tx.gPayAmount.toFixed(2)}</td>
-                    <td className="p-4 text-rose-400 text-right font-medium">{unpaid > 0 ? unpaid.toFixed(2) : '0.00'}</td>
+                    <td className="p-4 text-rose-400 text-right font-medium">{unpaid !== 0 ? unpaid.toFixed(2) : '0.00'}</td>
+                    <td className="p-4 text-center">
+                      <button 
+                        onClick={() => handleEditClick(tx)}
+                        className="text-primary hover:text-primaryLight transition-colors p-1"
+                        title="Edit Payment"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
               {filteredTransactions.length === 0 && (
                 <tr>
-                  <td colSpan="8" className="p-8 text-center text-textMuted">No transactions found for this student.</td>
+                  <td colSpan="9" className="p-8 text-center text-textMuted">No transactions found for this student.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {editingTx && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-surface border border-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-border bg-surfaceHighlight/30">
+              <h2 className="text-xl font-bold text-white">Edit Payment</h2>
+              <p className="text-textMuted text-sm mt-1">{editingTx.studentName} - {new Date(editingTx.date).toLocaleDateString()}</p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="flex justify-between items-center p-3 bg-surfaceHighlight rounded-lg">
+                <span className="text-textMuted font-medium">Total Print Cost:</span>
+                <span className="text-white font-bold text-lg">₹{editingTx.totalAmount.toFixed(2)}</span>
+              </div>
+
+              <div>
+                <label className="block text-textMuted font-medium mb-1">Cash Handed To You (₹)</label>
+                <input 
+                  type="number" 
+                  value={editCash} 
+                  onChange={e => setEditCash(e.target.value)}
+                  className="w-full bg-background border border-border rounded-lg p-3 text-white focus:border-primary outline-none"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-textMuted font-medium mb-1">Google Pay Sent (₹)</label>
+                <input 
+                  type="number" 
+                  value={editGPay} 
+                  onChange={e => setEditGPay(e.target.value)}
+                  className="w-full bg-background border border-border rounded-lg p-3 text-white focus:border-primary outline-none"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-textMuted font-medium mb-1">Change Given Back (₹)</label>
+                <input 
+                  type="number" 
+                  value={editGivenBack} 
+                  onChange={e => setEditGivenBack(e.target.value)}
+                  className="w-full bg-background border border-border rounded-lg p-3 text-white focus:border-primary outline-none"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="flex justify-between items-center p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg mt-2">
+                <span className="text-emerald-400 font-medium">Net Payment Recorded:</span>
+                <span className="text-emerald-400 font-bold text-lg">
+                  ₹{((parseFloat(editCash) || 0) + (parseFloat(editGPay) || 0) - (parseFloat(editGivenBack) || 0)).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-border bg-surfaceHighlight/30 flex justify-end gap-3">
+              <button 
+                onClick={() => setEditingTx(null)}
+                className="px-5 py-2.5 rounded-lg text-textMuted hover:text-white hover:bg-surfaceHighlight transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveEdit}
+                disabled={editLoading}
+                className="px-5 py-2.5 rounded-lg bg-primary hover:bg-primaryLight text-white font-medium transition-colors disabled:opacity-50"
+              >
+                {editLoading ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
