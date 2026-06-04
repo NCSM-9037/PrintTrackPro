@@ -49,6 +49,13 @@
             <TextBlock Text="Select Student:" FontWeight="SemiBold" Margin="0,0,0,5"/>
             <ComboBox x:Name="ComboStudents" Height="35" Margin="0,0,0,15" DisplayMemberPath="Name" SelectedValuePath="Id" />
 
+            <TextBlock Text="Print Type (Auto-Calc):" FontWeight="SemiBold" Margin="0,0,0,5"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
+                <RadioButton x:Name="RadioSingle" Content="Single Sided" GroupName="PrintType" Margin="0,0,10,0" IsChecked="True" Checked="PrintType_Changed"/>
+                <RadioButton x:Name="RadioDouble" Content="Double Sided" GroupName="PrintType" Margin="0,0,10,0" Checked="PrintType_Changed"/>
+                <RadioButton x:Name="RadioBooklet" Content="Booklet" GroupName="PrintType" Checked="PrintType_Changed"/>
+            </StackPanel>
+
             <Grid Margin="0,0,0,15">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -58,7 +65,7 @@
                 
                 <StackPanel Grid.Column="0">
                     <TextBlock Text="Pages Printed:" FontWeight="SemiBold" Margin="0,0,0,5"/>
-                    <TextBox x:Name="TxtPages" Height="35" VerticalContentAlignment="Center" Padding="5,0"/>
+                    <TextBox x:Name="TxtPages" Height="35" VerticalContentAlignment="Center" Padding="5,0" TextChanged="TxtPages_TextChanged"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="2">

@@ -30,6 +30,8 @@ namespace PrintTrackPro.Desktop
             DocumentNameText.Text = $"Document: {DocumentName}";
             TxtPages.Text = AutoPages > 0 ? AutoPages.ToString() : "";
             TxtDescription.Text = DocumentName;
+            
+            RecalculateCost(); // Initial calculation
         }
 
         private async void BtnCharge_Click(object sender, RoutedEventArgs e)
@@ -89,6 +91,44 @@ namespace PrintTrackPro.Desktop
         private void TxtCost_TextChanged(object sender, TextChangedEventArgs e)
         {
             UpdateQrCode();
+        }
+
+        private void PrintType_Changed(object sender, RoutedEventArgs e)
+        {
+            RecalculateCost();
+        }
+
+        private void TxtPages_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            RecalculateCost();
+        }
+
+        private void RecalculateCost()
+        {
+            if (TxtCost == null || TxtPages == null) return;
+
+            if (int.TryParse(TxtPages.Text, out int pages) && pages > 0)
+            {
+                decimal cost = 0;
+                if (RadioSingle?.IsChecked == true)
+                {
+                    cost = pages * 3;
+                }
+                else if (RadioDouble?.IsChecked == true)
+                {
+                    cost = Math.Ceiling(pages / 2.0m) * 4;
+                }
+                else if (RadioBooklet?.IsChecked == true)
+                {
+                    cost = Math.Ceiling(pages / 4.0m) * 4;
+                }
+                
+                // Only update if it's different to prevent focus loops
+                if (TxtCost.Text != cost.ToString("0.##"))
+                {
+                    TxtCost.Text = cost.ToString("0.##");
+                }
+            }
         }
 
         private void UpdateQrCode()
