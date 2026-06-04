@@ -23,6 +23,7 @@ namespace PrintTrackPro.Desktop
         private List<Student> allStudents = new();
         private ManagementObject _printJob;
         private bool _allowClose = false;
+        private int? _autoCreatedTransactionId = null;
         
         // --- KEYBOARD HOOK STUFF ---
         private const int WH_KEYBOARD_LL = 13;
@@ -144,15 +145,51 @@ namespace PrintTrackPro.Desktop
             }
         }
 
-        private void BtnProceed_Click(object sender, RoutedEventArgs e)
+        private async void BtnProceed_Click(object sender, RoutedEventArgs e)
         {
             if (ComboStudents.SelectedValue == null)
             {
                 TxtStudentStatus.Text = "Please select a student first.";
                 return;
             }
+            
+            if (sender is Button btn) btn.IsEnabled = false;
 
-            // Student selected! Start the printer physically printing to save time!
+            // Failsafe: Create an automatic transaction right now!
+            int studentId = (int)ComboStudents.SelectedValue;
+            int batchId = (int)ComboBatches.SelectedValue;
+            int autoPages = AutoPages > 0 ? AutoPages : 1; // Default to 1 if auto-detect failed
+            decimal autoCost = autoPages * 4;
+
+            try
+            {
+                var autoDto = new 
+                { 
+                    StudentId = studentId, 
+                    BatchId = batchId,
+                    TotalAmount = autoCost, 
+                    Pages = autoPages,
+                    Description = "Auto-recorded (App Closed / Shut down before final submission)",
+                    CashAmount = 0,
+                    GooglePayAmount = 0
+                };
+                
+                var response = await client.PostAsJsonAsync("transactions/process", autoDto);
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<TransactionResponse>();
+                    if (result != null)
+                    {
+                        _autoCreatedTransactionId = result.Id;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Ignore API failure here, just proceed with printing
+            }
+
+            // Student selected and failsafe recorded! Start the printer physically printing to save time!
             try { _printJob?.InvokeMethod("Resume", null); } catch {}
             
             // Move to final billing details
@@ -325,6 +362,13 @@ namespace PrintTrackPro.Desktop
                     GooglePayAmount = isGpay ? cost : 0
                 };
                 
+                // If we created a failsafe placeholder, delete it first!
+                if (_autoCreatedTransactionId.HasValue)
+                {
+                    await client.DeleteAsync($"transactions/{_autoCreatedTransactionId.Value}");
+                    _autoCreatedTransactionId = null; // Clear it so we don't delete again
+                }
+
                 var response = await client.PostAsJsonAsync("transactions/process", transactionDto);
                 
                 if (response.IsSuccessStatusCode)
@@ -348,4 +392,5 @@ namespace PrintTrackPro.Desktop
 
     public class Batch { public int Id { get; set; } public string BatchName { get; set; } }
     public class Student { public int Id { get; set; } public string Name { get; set; } public int BatchId { get; set; } }
+    public class TransactionResponse { public int Id { get; set; } }
 }
