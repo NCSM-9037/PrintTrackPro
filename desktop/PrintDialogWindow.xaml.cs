@@ -34,23 +34,34 @@ namespace PrintTrackPro.Desktop
             RecalculateCost(); // Initial calculation
         }
 
-        private async void BtnCharge_Click(object sender, RoutedEventArgs e)
+        private void BtnCharge_Click(object sender, RoutedEventArgs e)
         {
             GatekeeperPanel.Visibility = Visibility.Collapsed;
             BillingPanel.Visibility = Visibility.Visible;
-            TxtStatus.Text = "Loading batches...";
             
-            try
+            // Instantly load from cache instead of waiting for API!
+            allBatches = DataCache.Batches.ToList();
+            allStudents = DataCache.Students.ToList();
+            
+            if (allBatches.Any())
             {
-                allBatches = await client.GetFromJsonAsync<List<Batch>>("batches") ?? new List<Batch>();
-                allStudents = await client.GetFromJsonAsync<List<Student>>("students") ?? new List<Student>();
-                
                 ComboBatches.ItemsSource = allBatches;
                 TxtStatus.Text = "";
             }
-            catch (Exception ex)
+            else
             {
-                TxtStatus.Text = "Error connecting to server. Make sure internet is active.";
+                // Fallback if cache is empty (e.g. they opened it literally 1 second after starting the PC)
+                TxtStatus.Text = "Data is syncing in the background, please wait a moment and try again...";
+                _ = DataCache.FetchDataAsync().ContinueWith(t => 
+                {
+                    Dispatcher.Invoke(() => 
+                    {
+                        allBatches = DataCache.Batches.ToList();
+                        allStudents = DataCache.Students.ToList();
+                        ComboBatches.ItemsSource = allBatches;
+                        TxtStatus.Text = "";
+                    });
+                });
             }
         }
 

@@ -16,6 +16,9 @@ namespace PrintTrackPro.Desktop
             this.Hide();
             this.ShowInTaskbar = false;
             
+            // Start pulling student data quietly in the background so it's instant!
+            DataCache.StartAutoRefresh();
+            
             StartPrintWatcher();
         }
 
