@@ -174,15 +174,19 @@ namespace PrintTrackPro.Desktop
 
         private async void BtnSubmit_Click(object sender, RoutedEventArgs e)
         {
+            if (sender is Button btn) btn.IsEnabled = false;
+
             if (ComboStudents.SelectedValue == null)
             {
                 TxtStatus.Text = "Please select a student.";
+                if (sender is Button b) b.IsEnabled = true;
                 return;
             }
 
             if (!int.TryParse(TxtPages.Text, out int pages) || !decimal.TryParse(TxtCost.Text, out decimal cost))
             {
                 TxtStatus.Text = "Please enter valid numbers for Pages and Cost.";
+                if (sender is Button b) b.IsEnabled = true;
                 return;
             }
 
@@ -219,11 +223,13 @@ namespace PrintTrackPro.Desktop
                 else
                 {
                     TxtStatus.Text = $"Error: {response.StatusCode} - {await response.Content.ReadAsStringAsync()}";
+                    if (sender is Button bErr) bErr.IsEnabled = true;
                 }
             }
             catch (Exception ex)
             {
                 TxtStatus.Text = "Error saving data. " + ex.Message;
+                if (sender is Button bErr2) bErr2.IsEnabled = true;
             }
         }
     }
