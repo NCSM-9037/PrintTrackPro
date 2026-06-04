@@ -63,7 +63,7 @@
 
                 <StackPanel Grid.Column="2">
                     <TextBlock Text="Rupees (Cost):" FontWeight="SemiBold" Margin="0,0,0,5"/>
-                    <TextBox x:Name="TxtCost" Height="35" VerticalContentAlignment="Center" Padding="5,0"/>
+                    <TextBox x:Name="TxtCost" Height="35" VerticalContentAlignment="Center" Padding="5,0" TextChanged="TxtCost_TextChanged"/>
                 </StackPanel>
             </Grid>
 
@@ -71,11 +71,13 @@
             <TextBox x:Name="TxtDescription" Height="60" TextWrapping="Wrap" Margin="0,0,0,20" Padding="5"/>
 
             <TextBlock Text="Payment Status:" FontWeight="SemiBold" Margin="0,0,0,10"/>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-                <RadioButton x:Name="RadioNotPaid" Content="Not Paid" GroupName="Payment" Margin="0,0,15,0" IsChecked="True"/>
-                <RadioButton x:Name="RadioPaid" Content="Paid (Cash)" GroupName="Payment" Margin="0,0,15,0"/>
-                <RadioButton x:Name="RadioGpay" Content="Google Pay" GroupName="Payment"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <RadioButton x:Name="RadioNotPaid" Content="Not Paid" GroupName="Payment" Margin="0,0,15,0" IsChecked="True" Checked="PaymentMethod_Changed"/>
+                <RadioButton x:Name="RadioPaid" Content="Paid (Cash)" GroupName="Payment" Margin="0,0,15,0" Checked="PaymentMethod_Changed"/>
+                <RadioButton x:Name="RadioGpay" Content="Google Pay" GroupName="Payment" Checked="PaymentMethod_Changed"/>
             </StackPanel>
+
+            <Image x:Name="ImgQrCode" Width="150" Height="150" Margin="0,0,0,15" Visibility="Collapsed"/>
 
             <Grid>
                 <Grid.ColumnDefinitions>

@@ -47,6 +47,20 @@ namespace PrintTrackPro.Desktop
                     int.TryParse(targetInstance["TotalPages"].ToString(), out pages);
                 }
 
+                string jobName = targetInstance["Name"]?.ToString() ?? "";
+                string printerName = jobName.Contains(",") ? jobName.Split(',')[0] : jobName;
+                
+                // Read TargetPrinter.txt to see if we should filter
+                string configPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TargetPrinter.txt");
+                if (System.IO.File.Exists(configPath))
+                {
+                    string targetPrinter = System.IO.File.ReadAllText(configPath).Trim();
+                    if (!string.IsNullOrEmpty(targetPrinter) && !printerName.Contains(targetPrinter, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return; // Ignore this print job since it doesn't match the target printer
+                    }
+                }
+
                 // Since this runs on a background thread, we must invoke the UI thread to show the popup
                 Application.Current.Dispatcher.Invoke(() =>
                 {

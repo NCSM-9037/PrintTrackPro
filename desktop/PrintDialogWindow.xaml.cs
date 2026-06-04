@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Linq;
+using System.IO;
+using System.Windows.Media.Imaging;
+using QRCoder;
 
 namespace PrintTrackPro.Desktop
 {
@@ -75,6 +78,57 @@ namespace PrintTrackPro.Desktop
                 
                 if (filteredStudents.Any())
                     ComboStudents.SelectedIndex = 0;
+            }
+        }
+
+        private void PaymentMethod_Changed(object sender, RoutedEventArgs e)
+        {
+            UpdateQrCode();
+        }
+
+        private void TxtCost_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            UpdateQrCode();
+        }
+
+        private void UpdateQrCode()
+        {
+            if (ImgQrCode == null) return;
+            
+            if (RadioGpay?.IsChecked == true && decimal.TryParse(TxtCost.Text, out decimal cost) && cost > 0)
+            {
+                string upiId = "example@upi";
+                string configPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "UpiID.txt");
+                if (System.IO.File.Exists(configPath))
+                {
+                    string fileUpi = System.IO.File.ReadAllText(configPath).Trim();
+                    if (!string.IsNullOrEmpty(fileUpi)) upiId = fileUpi;
+                }
+
+                string upiUrl = $"upi://pay?pa={upiId}&pn=PrintTrackPro&am={cost}&cu=INR";
+
+                using (QRCodeGenerator qrGenerator = new QRCodeGenerator())
+                using (QRCodeData qrCodeData = qrGenerator.CreateQrCode(upiUrl, QRCodeGenerator.ECCLevel.Q))
+                using (PngByteQRCode qrCode = new PngByteQRCode(qrCodeData))
+                {
+                    byte[] qrCodeImage = qrCode.GetGraphic(20);
+                    using (MemoryStream stream = new MemoryStream(qrCodeImage))
+                    {
+                        BitmapImage bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.StreamSource = stream;
+                        bitmap.EndInit();
+                        bitmap.Freeze();
+                        
+                        ImgQrCode.Source = bitmap;
+                        ImgQrCode.Visibility = Visibility.Visible;
+                    }
+                }
+            }
+            else
+            {
+                ImgQrCode.Visibility = Visibility.Collapsed;
             }
         }
 
