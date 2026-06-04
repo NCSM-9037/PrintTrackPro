@@ -12,9 +12,9 @@ namespace PrintTrackPro.Desktop
         {
             InitializeComponent();
             
-            // Hide the main window so it runs silently in the background
-            this.Hide();
-            this.ShowInTaskbar = false;
+            // Debug mode: Don't hide the main window so we can see it
+            // this.Hide();
+            // this.ShowInTaskbar = false;
             
             // Start pulling student data quietly in the background so it's instant!
             DataCache.StartAutoRefresh();
@@ -42,8 +42,14 @@ namespace PrintTrackPro.Desktop
             try
             {
                 ManagementObject targetInstance = (ManagementObject)e.NewEvent["TargetInstance"];
-                
                 string document = targetInstance["Document"]?.ToString() ?? "Unknown Document";
+                
+                // Show detection!
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    MessageBox.Show($"Print job detected! Document: {document}");
+                });
+
                 int pages = 0;
                 if (targetInstance["TotalPages"] != null)
                 {
@@ -69,21 +75,34 @@ namespace PrintTrackPro.Desktop
                 {
                     targetInstance.InvokeMethod("Pause", null);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // If pausing fails, we still show the popup
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        MessageBox.Show("Error pausing print job: " + ex.ToString());
+                    });
                 }
 
                 // Since this runs on a background thread, we must invoke the UI thread to show the popup
                 Application.Current.Dispatcher.Invoke(() =>
                 {
-                    var dialog = new PrintDialogWindow(document, pages, targetInstance);
-                    dialog.ShowDialog();
+                    try 
+                    {
+                        var dialog = new PrintDialogWindow(document, pages, targetInstance);
+                        dialog.ShowDialog();
+                    } 
+                    catch (Exception winEx)
+                    {
+                        MessageBox.Show("Error opening PrintDialogWindow: " + winEx.ToString());
+                    }
                 });
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore silent errors from spooler
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    MessageBox.Show("Critical Error in PrintJobArrived: " + ex.ToString());
+                });
             }
         }
 
