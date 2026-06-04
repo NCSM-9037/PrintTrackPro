@@ -159,7 +159,7 @@ namespace PrintTrackPro.Desktop
             int studentId = (int)ComboStudents.SelectedValue;
             int batchId = (int)ComboBatches.SelectedValue;
             int autoPages = AutoPages > 0 ? AutoPages : 1; // Default to 1 if auto-detect failed
-            decimal autoCost = autoPages * 4;
+            decimal autoCost = autoPages * 3;
 
             try
             {
@@ -169,7 +169,7 @@ namespace PrintTrackPro.Desktop
                     BatchId = batchId,
                     TotalAmount = autoCost, 
                     Pages = autoPages,
-                    Description = "Auto-recorded (App Closed / Shut down before final submission)",
+                    Description = string.IsNullOrEmpty(DocumentName) ? "Unknown Document" : DocumentName,
                     CashAmount = 0,
                     GooglePayAmount = 0
                 };
