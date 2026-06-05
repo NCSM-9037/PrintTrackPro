@@ -29,6 +29,7 @@ namespace PrintTrackPro.Backend.Controllers
                 {
                     StudentId = s.Id,
                     StudentName = s.Name,
+                    BatchId = s.BatchId,
                     BatchName = s.Batch.BatchName,
                     
                     // Sum of all pages printed in transactions by this student
