@@ -162,9 +162,32 @@ namespace PrintTrackPro.Desktop
             
             if (sender is Button btn) btn.IsEnabled = false;
 
-            // Failsafe: Create an automatic transaction right now!
             int studentId = (int)ComboStudents.SelectedValue;
             int batchId = (int)ComboBatches.SelectedValue;
+            
+            // --- DEBT CHECK ---
+            TxtStudentStatus.Text = "Checking account status...";
+            try
+            {
+                var debts = await client.GetFromJsonAsync<List<Debt>>("debts");
+                if (debts != null)
+                {
+                    var studentDebt = debts.FirstOrDefault(d => d.StudentId == studentId && d.Amount > 0);
+                    if (studentDebt != null)
+                    {
+                        MessageBox.Show($"You have {studentDebt.Amount} rupees to pay to MHS PRINT", "Outstanding Debt", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        _allowClose = true;
+                        try { _printJob?.InvokeMethod("Delete", null); } catch {}
+                        this.Close();
+                        return;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Silently ignore if offline, let them proceed
+            }
+            TxtStudentStatus.Text = "";
             int autoPages = AutoPages > 0 ? AutoPages : 1; // Default to 1 if auto-detect failed
             decimal autoCost = autoPages * 3;
 
@@ -542,5 +565,6 @@ namespace PrintTrackPro.Desktop
 
     public class Batch { public int Id { get; set; } public string BatchName { get; set; } }
     public class Student { public int Id { get; set; } public string Name { get; set; } public int BatchId { get; set; } }
+    public class Debt { public int Id { get; set; } public int StudentId { get; set; } public decimal Amount { get; set; } }
     public class TransactionResponse { public int Id { get; set; } }
 }
