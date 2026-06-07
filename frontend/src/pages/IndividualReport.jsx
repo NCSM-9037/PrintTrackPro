@@ -5,6 +5,7 @@ const IndividualReport = () => {
   const [transactions, setTransactions] = useState([]);
   const [students, setStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState('all');
+  const [selectedBatchName, setSelectedBatchName] = useState('all');
   const [loading, setLoading] = useState(true);
 
   // Edit Modal State
@@ -169,10 +170,37 @@ const IndividualReport = () => {
     }
   };
 
+  const batches = useMemo(() => {
+    const uniqueBatches = new Set(students.map(s => s.batchName));
+    return Array.from(uniqueBatches).sort();
+  }, [students]);
+
+  const filteredStudentsForFilter = useMemo(() => {
+    if (selectedBatchName === 'all') return students;
+    return students.filter(s => s.batchName === selectedBatchName);
+  }, [students, selectedBatchName]);
+
+  const handleBatchChange = (e) => {
+    setSelectedBatchName(e.target.value);
+    setSelectedStudentId('all');
+  };
+
   const filteredTransactions = useMemo(() => {
-    if (selectedStudentId === 'all') return transactions;
-    return transactions.filter(t => t.studentId === parseInt(selectedStudentId));
-  }, [transactions, selectedStudentId]);
+    let result = transactions;
+    
+    if (selectedBatchName !== 'all') {
+      const studentIdsInBatch = new Set(
+        students.filter(s => s.batchName === selectedBatchName).map(s => s.studentId)
+      );
+      result = result.filter(t => studentIdsInBatch.has(t.studentId));
+    }
+    
+    if (selectedStudentId !== 'all') {
+      result = result.filter(t => t.studentId === parseInt(selectedStudentId));
+    }
+    
+    return result;
+  }, [transactions, students, selectedBatchName, selectedStudentId]);
 
   // Search and filter students in the dropdown
   const filteredSearchStudents = useMemo(() => {
@@ -207,18 +235,34 @@ const IndividualReport = () => {
           </button>
         </div>
         
-        <div className="flex items-center gap-3">
-          <label className="text-textMuted font-medium text-sm">Filter by Student:</label>
-          <select 
-            className="bg-surface border border-border text-white rounded-lg px-4 py-2 outline-none focus:border-primary transition-colors text-sm"
-            value={selectedStudentId}
-            onChange={(e) => setSelectedStudentId(e.target.value)}
-          >
-            <option value="all">-- All Students --</option>
-            {students.map(s => (
-              <option key={s.studentId} value={s.studentId}>{s.studentName} ({s.batchName})</option>
-            ))}
-          </select>
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-textMuted font-medium text-sm whitespace-nowrap">Filter by Batch:</label>
+            <select 
+              className="bg-surface border border-border text-white rounded-lg px-4 py-2 outline-none focus:border-primary transition-colors text-sm min-w-[140px]"
+              value={selectedBatchName}
+              onChange={handleBatchChange}
+            >
+              <option value="all">-- All Batches --</option>
+              {batches.map(b => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-textMuted font-medium text-sm whitespace-nowrap">Student:</label>
+            <select 
+              className="bg-surface border border-border text-white rounded-lg px-4 py-2 outline-none focus:border-primary transition-colors text-sm min-w-[180px]"
+              value={selectedStudentId}
+              onChange={(e) => setSelectedStudentId(e.target.value)}
+            >
+              <option value="all">-- All Students --</option>
+              {filteredStudentsForFilter.map(s => (
+                <option key={s.studentId} value={s.studentId}>{s.studentName}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

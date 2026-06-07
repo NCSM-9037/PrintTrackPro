@@ -25,13 +25,8 @@ namespace PrintTrackPro.Backend.Controllers
         [HttpPost("students")]
         public async Task<ActionResult<FirebaseSyncResult>> SyncStudents(CancellationToken cancellationToken)
         {
-            if (!_environment.IsDevelopment())
+            if (!_environment.IsDevelopment() && !string.IsNullOrWhiteSpace(_options.ManualSyncKey))
             {
-                if (string.IsNullOrWhiteSpace(_options.ManualSyncKey))
-                {
-                    return Forbid();
-                }
-
                 var providedKey = Request.Headers["X-Sync-Key"].FirstOrDefault();
                 if (!string.Equals(providedKey, _options.ManualSyncKey, StringComparison.Ordinal))
                 {

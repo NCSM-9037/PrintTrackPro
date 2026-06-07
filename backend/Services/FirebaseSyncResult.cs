@@ -7,5 +7,7 @@ namespace PrintTrackPro.Backend.Services
         public int StudentsCreated { get; set; }
         public int StudentsUpdated { get; set; }
         public int StudentsSkipped { get; set; }
+        public bool Success { get; set; } = true;
+        public string ErrorMessage { get; set; } = string.Empty;
     }
 }

@@ -29,115 +29,126 @@ namespace PrintTrackPro.Backend.Services
         public async Task<FirebaseSyncResult> SyncAsync(CancellationToken cancellationToken = default)
         {
             var result = new FirebaseSyncResult();
-            var firestore = CreateFirestoreDb();
-            if (firestore == null)
+            try
             {
-                _logger.LogWarning("Firebase student sync skipped because Firebase credentials/project are not configured.");
-                return result;
+                var firestore = CreateFirestoreDb();
+                if (firestore == null)
+                {
+                    _logger.LogWarning("Firebase student sync skipped because Firebase credentials/project are not configured.");
+                    result.Success = false;
+                    result.ErrorMessage = "Firebase credentials or project are not configured on the server. Please check environment variables (FirebaseSync__CredentialsJson).";
+                    return result;
+                }
+
+                var snapshot = await firestore.Collection(_options.CollectionName).GetSnapshotAsync(cancellationToken);
+
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                foreach (var document in snapshot.Documents)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    result.FirebaseStudentsSeen++;
+
+                    var name = GetString(document, "student_name", "name", "studentName");
+                    var batchName = GetString(document, "batch", "batchName");
+
+                    if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(batchName))
+                    {
+                        result.StudentsSkipped++;
+                        continue;
+                    }
+
+                    name = name.Trim();
+                    batchName = batchName.Trim();
+
+                    var batch = await db.Batches
+                        .FirstOrDefaultAsync(b => b.BatchName.ToLower() == batchName.ToLower(), cancellationToken);
+
+                    if (batch == null)
+                    {
+                        batch = new Batch
+                        {
+                            BatchName = batchName,
+                            Year = GetString(document, "year") ?? _options.DefaultYear,
+                            Department = GetString(document, "department") ?? _options.DefaultDepartment
+                        };
+
+                        db.Batches.Add(batch);
+                        await db.SaveChangesAsync(cancellationToken);
+                        result.BatchesCreated++;
+                    }
+
+                    var sourceStudentId = GetString(document, "studentId", "student_id", "admissionNumber", "admission_no", "rollNo", "roll_no");
+                    var studentId = string.IsNullOrWhiteSpace(sourceStudentId)
+                        ? CreateStableStudentId(document.Id, name, batchName)
+                        : sourceStudentId.Trim();
+
+                    var existingStudent = await db.Students
+                        .Include(s => s.Batch)
+                        .FirstOrDefaultAsync(s =>
+                            s.StudentId == studentId ||
+                            (s.Name.ToLower() == name.ToLower() && s.BatchId == batch.Id),
+                            cancellationToken);
+
+                    var phoneNumber = GetString(document, "phoneNumber", "phone", "mobile") ?? string.Empty;
+                    var email = GetString(document, "email") ?? string.Empty;
+                    var status = GetString(document, "status") ?? "Active";
+
+                    if (existingStudent == null)
+                    {
+                        db.Students.Add(new Student
+                        {
+                            StudentId = studentId,
+                            Name = name,
+                            BatchId = batch.Id,
+                            PhoneNumber = phoneNumber,
+                            Email = email,
+                            Status = status,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                        result.StudentsCreated++;
+                        continue;
+                    }
+
+                    var changed = false;
+                    changed |= SetIfDifferent(existingStudent.Name, name, value => existingStudent.Name = value);
+                    changed |= SetIfDifferent(existingStudent.StudentId, studentId, value => existingStudent.StudentId = value);
+                    changed |= SetIfDifferent(existingStudent.PhoneNumber, phoneNumber, value => existingStudent.PhoneNumber = value);
+                    changed |= SetIfDifferent(existingStudent.Email, email, value => existingStudent.Email = value);
+                    changed |= SetIfDifferent(existingStudent.Status, status, value => existingStudent.Status = value);
+
+                    if (existingStudent.BatchId != batch.Id)
+                    {
+                        existingStudent.BatchId = batch.Id;
+                        changed = true;
+                    }
+
+                    if (changed)
+                    {
+                        result.StudentsUpdated++;
+                    }
+                    else
+                    {
+                        result.StudentsSkipped++;
+                    }
+                }
+
+                await db.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation(
+                    "Firebase student sync complete. Seen: {Seen}, batches created: {BatchesCreated}, students created: {StudentsCreated}, updated: {StudentsUpdated}, skipped: {StudentsSkipped}",
+                    result.FirebaseStudentsSeen,
+                    result.BatchesCreated,
+                    result.StudentsCreated,
+                    result.StudentsUpdated,
+                    result.StudentsSkipped);
             }
-
-            var snapshot = await firestore.Collection(_options.CollectionName).GetSnapshotAsync(cancellationToken);
-
-            using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-            foreach (var document in snapshot.Documents)
+            catch (Exception ex)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                result.FirebaseStudentsSeen++;
-
-                var name = GetString(document, "student_name", "name", "studentName");
-                var batchName = GetString(document, "batch", "batchName");
-
-                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(batchName))
-                {
-                    result.StudentsSkipped++;
-                    continue;
-                }
-
-                name = name.Trim();
-                batchName = batchName.Trim();
-
-                var batch = await db.Batches
-                    .FirstOrDefaultAsync(b => b.BatchName.ToLower() == batchName.ToLower(), cancellationToken);
-
-                if (batch == null)
-                {
-                    batch = new Batch
-                    {
-                        BatchName = batchName,
-                        Year = GetString(document, "year") ?? _options.DefaultYear,
-                        Department = GetString(document, "department") ?? _options.DefaultDepartment
-                    };
-
-                    db.Batches.Add(batch);
-                    await db.SaveChangesAsync(cancellationToken);
-                    result.BatchesCreated++;
-                }
-
-                var sourceStudentId = GetString(document, "studentId", "student_id", "admissionNumber", "admission_no", "rollNo", "roll_no");
-                var studentId = string.IsNullOrWhiteSpace(sourceStudentId)
-                    ? CreateStableStudentId(document.Id, name, batchName)
-                    : sourceStudentId.Trim();
-
-                var existingStudent = await db.Students
-                    .Include(s => s.Batch)
-                    .FirstOrDefaultAsync(s =>
-                        s.StudentId == studentId ||
-                        (s.Name.ToLower() == name.ToLower() && s.BatchId == batch.Id),
-                        cancellationToken);
-
-                var phoneNumber = GetString(document, "phoneNumber", "phone", "mobile") ?? string.Empty;
-                var email = GetString(document, "email") ?? string.Empty;
-                var status = GetString(document, "status") ?? "Active";
-
-                if (existingStudent == null)
-                {
-                    db.Students.Add(new Student
-                    {
-                        StudentId = studentId,
-                        Name = name,
-                        BatchId = batch.Id,
-                        PhoneNumber = phoneNumber,
-                        Email = email,
-                        Status = status,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                    result.StudentsCreated++;
-                    continue;
-                }
-
-                var changed = false;
-                changed |= SetIfDifferent(existingStudent.Name, name, value => existingStudent.Name = value);
-                changed |= SetIfDifferent(existingStudent.StudentId, studentId, value => existingStudent.StudentId = value);
-                changed |= SetIfDifferent(existingStudent.PhoneNumber, phoneNumber, value => existingStudent.PhoneNumber = value);
-                changed |= SetIfDifferent(existingStudent.Email, email, value => existingStudent.Email = value);
-                changed |= SetIfDifferent(existingStudent.Status, status, value => existingStudent.Status = value);
-
-                if (existingStudent.BatchId != batch.Id)
-                {
-                    existingStudent.BatchId = batch.Id;
-                    changed = true;
-                }
-
-                if (changed)
-                {
-                    result.StudentsUpdated++;
-                }
-                else
-                {
-                    result.StudentsSkipped++;
-                }
+                _logger.LogError(ex, "Firebase student sync failed.");
+                result.Success = false;
+                result.ErrorMessage = $"Sync failed with exception: {ex.Message}";
             }
-
-            await db.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation(
-                "Firebase student sync complete. Seen: {Seen}, batches created: {BatchesCreated}, students created: {StudentsCreated}, updated: {StudentsUpdated}, skipped: {StudentsSkipped}",
-                result.FirebaseStudentsSeen,
-                result.BatchesCreated,
-                result.StudentsCreated,
-                result.StudentsUpdated,
-                result.StudentsSkipped);
 
             return result;
         }
