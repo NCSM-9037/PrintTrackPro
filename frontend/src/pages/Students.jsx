@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import { Plus, UserPlus } from 'lucide-react';
+import AddStudentModal from '../components/AddStudentModal';
+import AddGuestModal from '../components/AddGuestModal';
 
 const Students = () => {
   const [students, setStudents] = useState([]);
@@ -8,6 +11,9 @@ const Students = () => {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBatch, setSelectedBatch] = useState('all');
+  
+  const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
+  const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
 
   const fetchStudents = async () => {
     try {
@@ -90,6 +96,20 @@ const Students = () => {
               </>
             )}
           </button>
+          <button 
+            onClick={() => setIsStudentModalOpen(true)}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl transition-all duration-200 font-medium text-sm shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/35 hover:-translate-y-0.5"
+          >
+            <Plus size={16} />
+            Add Student
+          </button>
+          <button 
+            onClick={() => setIsGuestModalOpen(true)}
+            className="flex items-center gap-2 bg-surfaceHighlight hover:bg-surfaceHighlight/80 text-white px-4 py-2.5 rounded-xl transition-all duration-200 font-medium text-sm border border-border hover:-translate-y-0.5"
+          >
+            <UserPlus size={16} />
+            Add Guest
+          </button>
         </div>
         
         <div className="flex flex-col sm:flex-row items-center gap-3">
@@ -149,6 +169,17 @@ const Students = () => {
           </table>
         </div>
       </div>
+
+      <AddStudentModal 
+        isOpen={isStudentModalOpen} 
+        onClose={() => setIsStudentModalOpen(false)} 
+        onSuccess={fetchStudents} 
+      />
+      <AddGuestModal 
+        isOpen={isGuestModalOpen} 
+        onClose={() => setIsGuestModalOpen(false)} 
+        onSuccess={fetchStudents} 
+      />
     </div>
   );
 };
