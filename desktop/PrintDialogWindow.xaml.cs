@@ -27,6 +27,8 @@ namespace PrintTrackPro.Desktop
         private int? _autoCreatedTransactionId = null;
         private bool _isBlockingSystem = false;
         private HwndSource _hwndSource = null;
+        private int _selectedStudentId;
+        private int _selectedBatchId;
         
         // --- KEYBOARD HOOK STUFF ---
         private const int WH_KEYBOARD_LL = 13;
@@ -130,9 +132,11 @@ namespace PrintTrackPro.Desktop
             allBatches = DataCache.Batches.ToList();
             allStudents = DataCache.Students.ToList();
             
-            if (allBatches.Any())
+            var regularBatches = allBatches.Where(b => !b.BatchName.Equals("Guests", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (regularBatches.Any())
             {
-                ComboBatches.ItemsSource = allBatches;
+                ComboBatches.ItemsSource = regularBatches;
                 TxtStudentStatus.Text = "";
             }
             else
@@ -145,28 +149,87 @@ namespace PrintTrackPro.Desktop
                     {
                         allBatches = DataCache.Batches.ToList();
                         allStudents = DataCache.Students.ToList();
-                        ComboBatches.ItemsSource = allBatches;
+                        var safeBatches = allBatches.Where(b => !b.BatchName.Equals("Guests", StringComparison.OrdinalIgnoreCase)).ToList();
+                        ComboBatches.ItemsSource = safeBatches;
                         TxtStudentStatus.Text = "";
                     });
                 });
             }
         }
 
-        private async void BtnProceed_Click(object sender, RoutedEventArgs e)
+        private void BtnGuestPrint_Click(object sender, RoutedEventArgs e)
+        {
+            GatekeeperPanel.Visibility = Visibility.Collapsed;
+            GuestPasswordPanel.Visibility = Visibility.Visible;
+            TxtGuestPassword.Focus();
+        }
+
+        private void BtnVerifyGuest_Click(object sender, RoutedEventArgs e)
+        {
+            if (TxtGuestPassword.Password == "##print##guest##")
+            {
+                GuestPasswordPanel.Visibility = Visibility.Collapsed;
+                GuestSelectionPanel.Visibility = Visibility.Visible;
+                
+                // Load guest data
+                allBatches = DataCache.Batches.ToList();
+                allStudents = DataCache.Students.ToList();
+                
+                var guestBatch = allBatches.FirstOrDefault(b => b.BatchName.Equals("Guests", StringComparison.OrdinalIgnoreCase));
+                if (guestBatch != null)
+                {
+                    var guests = allStudents.Where(s => s.BatchId == guestBatch.Id).ToList();
+                    ComboGuests.ItemsSource = guests;
+                }
+                else
+                {
+                    TxtGuestStatus.Text = "No Guests batch found. Please add a guest from the website first.";
+                }
+            }
+            else
+            {
+                TxtGuestPasswordStatus.Text = "Incorrect authorization password.";
+            }
+        }
+
+        private void BtnProceed_Click(object sender, RoutedEventArgs e)
         {
             if (ComboStudents.SelectedValue == null)
             {
                 TxtStudentStatus.Text = "Please select a student first.";
                 return;
             }
-            
             if (sender is Button btn) btn.IsEnabled = false;
 
             int studentId = (int)ComboStudents.SelectedValue;
             int batchId = (int)ComboBatches.SelectedValue;
             
+            ProceedToBilling(studentId, batchId, TxtStudentStatus, StudentPanel);
+        }
+
+        private void BtnProceedGuest_Click(object sender, RoutedEventArgs e)
+        {
+            if (ComboGuests.SelectedValue == null)
+            {
+                TxtGuestStatus.Text = "Please select a guest first.";
+                return;
+            }
+            if (sender is Button btn) btn.IsEnabled = false;
+
+            int studentId = (int)ComboGuests.SelectedValue;
+            var guestBatch = allBatches.FirstOrDefault(b => b.BatchName.Equals("Guests", StringComparison.OrdinalIgnoreCase));
+            int batchId = guestBatch?.Id ?? 0;
+            
+            ProceedToBilling(studentId, batchId, TxtGuestStatus, GuestSelectionPanel);
+        }
+
+        private async void ProceedToBilling(int studentId, int batchId, TextBlock statusBlock, StackPanel currentPanel)
+        {
+            _selectedStudentId = studentId;
+            _selectedBatchId = batchId;
+
             // --- DEBT CHECK ---
-            TxtStudentStatus.Text = "Checking account status...";
+            statusBlock.Text = "Checking account status...";
             try
             {
                 var debts = await client.GetFromJsonAsync<List<Debt>>("debts");
@@ -187,7 +250,7 @@ namespace PrintTrackPro.Desktop
             {
                 // Silently ignore if offline, let them proceed
             }
-            TxtStudentStatus.Text = "";
+            statusBlock.Text = "";
             int autoPages = AutoPages > 0 ? AutoPages : 1; // Default to 1 if auto-detect failed
             decimal autoCost = autoPages * 3;
 
@@ -226,7 +289,7 @@ namespace PrintTrackPro.Desktop
             EnableSystemBlock();
 
             // Move to final billing details
-            StudentPanel.Visibility = Visibility.Collapsed;
+            currentPanel.Visibility = Visibility.Collapsed;
             DetailsPanel.Visibility = Visibility.Visible;
             
             TxtHeader.Text = "Enter Print Details";
@@ -384,8 +447,8 @@ namespace PrintTrackPro.Desktop
                 return;
             }
 
-            int studentId = (int)ComboStudents.SelectedValue;
-            int batchId = (int)ComboBatches.SelectedValue;
+            int studentId = _selectedStudentId;
+            int batchId = _selectedBatchId;
             string description = TxtDescription.Text;
             
             // Payment logic
