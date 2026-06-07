@@ -13,6 +13,7 @@ using System.Management;
 using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.ComponentModel;
+using System.Windows.Interop;
 
 namespace PrintTrackPro.Desktop
 {
@@ -24,6 +25,8 @@ namespace PrintTrackPro.Desktop
         private ManagementObject _printJob;
         private bool _allowClose = false;
         private int? _autoCreatedTransactionId = null;
+        private bool _isBlockingSystem = false;
+        private HwndSource _hwndSource = null;
         
         // --- KEYBOARD HOOK STUFF ---
         private const int WH_KEYBOARD_LL = 13;
@@ -66,7 +69,11 @@ namespace PrintTrackPro.Desktop
             RecalculateCost(); // Initial calculation
 
             this.Loaded += (s, e) => { _hookID = SetHook(_proc); };
-            this.Closed += (s, e) => { UnhookWindowsHookEx(_hookID); };
+            this.Closed += (s, e) => 
+            { 
+                UnhookWindowsHookEx(_hookID); 
+                DisableSystemBlock();
+            };
         }
 
         private IntPtr SetHook(LowLevelKeyboardProc proc)
@@ -192,6 +199,9 @@ namespace PrintTrackPro.Desktop
             // Student selected and failsafe recorded! Start the printer physically printing to save time!
             try { _printJob?.InvokeMethod("Resume", null); } catch {}
             
+            // Start blocking shutdown, sign-out, sleep, and lock
+            EnableSystemBlock();
+
             // Move to final billing details
             StudentPanel.Visibility = Visibility.Collapsed;
             DetailsPanel.Visibility = Visibility.Visible;
@@ -203,9 +213,21 @@ namespace PrintTrackPro.Desktop
 
         private void BtnNoFees_Click(object sender, RoutedEventArgs e)
         {
-            _allowClose = true;
-            try { _printJob?.InvokeMethod("Resume", null); } catch {}
-            this.Close();
+            var pwdDialog = new PasswordInputDialog();
+            pwdDialog.Owner = this;
+            if (pwdDialog.ShowDialog() == true)
+            {
+                if (pwdDialog.Password == "####print")
+                {
+                    _allowClose = true;
+                    try { _printJob?.InvokeMethod("Resume", null); } catch {}
+                    this.Close();
+                }
+                else
+                {
+                    MessageBox.Show("Incorrect password! Free printing access denied.", "Access Denied", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
         }
         
         private void BtnCancelPrint_Click(object sender, RoutedEventArgs e)
@@ -386,6 +408,134 @@ namespace PrintTrackPro.Desktop
             {
                 TxtStatus.Text = "Error saving data. " + ex.Message;
                 if (sender is Button bErr2) bErr2.IsEnabled = true;
+            }
+        }
+
+        // --- SYSTEM BLOCKING / FAILSAPES ---
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool ShutdownBlockReasonCreate(IntPtr hWnd, [MarshalAs(UnmanagedType.LPWStr)] string pwszReason);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool ShutdownBlockReasonDestroy(IntPtr hWnd);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern EXECUTION_STATE SetThreadExecutionState(EXECUTION_STATE esFlags);
+
+        [Flags]
+        private enum EXECUTION_STATE : uint
+        {
+            ES_AWAYMODE_REQUIRED = 0x00000040,
+            ES_CONTINUOUS = 0x80000000,
+            ES_DISPLAY_REQUIRED = 0x00000002,
+            ES_SYSTEM_REQUIRED = 0x00000001
+        }
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            _hwndSource = PresentationSource.FromVisual(this) as HwndSource;
+            _hwndSource?.AddHook(WndProc);
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            const int WM_QUERYENDSESSION = 0x0011;
+            if (msg == WM_QUERYENDSESSION)
+            {
+                if (_isBlockingSystem)
+                {
+                    handled = true; // Block logoff/shutdown
+                    return IntPtr.Zero; // Return 0 to tell Windows to abort
+                }
+            }
+            return IntPtr.Zero;
+        }
+
+        private void EnableSystemBlock()
+        {
+            if (_isBlockingSystem) return;
+
+            try
+            {
+                IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                if (hwnd != IntPtr.Zero)
+                {
+                    ShutdownBlockReasonCreate(hwnd, "PrintTrackPro: A print transaction is currently in progress. Please complete the transaction first.");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("ShutdownBlockReasonCreate error: " + ex.Message);
+            }
+
+            // Disable Lock workstation (Win + L)
+            SetLockDisabled(true);
+
+            // Keep monitor and system awake (Disable Sleep)
+            try
+            {
+                SetThreadExecutionState(EXECUTION_STATE.ES_CONTINUOUS | EXECUTION_STATE.ES_SYSTEM_REQUIRED | EXECUTION_STATE.ES_DISPLAY_REQUIRED);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("SetThreadExecutionState error: " + ex.Message);
+            }
+
+            _isBlockingSystem = true;
+        }
+
+        private void DisableSystemBlock()
+        {
+            if (!_isBlockingSystem) return;
+
+            try
+            {
+                IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                if (hwnd != IntPtr.Zero)
+                {
+                    ShutdownBlockReasonDestroy(hwnd);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("ShutdownBlockReasonDestroy error: " + ex.Message);
+            }
+
+            // Re-enable Locking
+            SetLockDisabled(false);
+
+            // Restore normal sleep/standby
+            try
+            {
+                SetThreadExecutionState(EXECUTION_STATE.ES_CONTINUOUS);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Restore SetThreadExecutionState error: " + ex.Message);
+            }
+
+            _isBlockingSystem = false;
+        }
+
+        private void SetLockDisabled(bool disable)
+        {
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Policies\System"))
+                {
+                    if (disable)
+                    {
+                        key.SetValue("DisableLockWorkstation", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                    }
+                    else
+                    {
+                        key.DeleteValue("DisableLockWorkstation", false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("SetLockDisabled error: " + ex.Message);
             }
         }
     }
