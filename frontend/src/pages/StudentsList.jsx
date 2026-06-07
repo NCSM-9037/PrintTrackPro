@@ -1,20 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Plus, User, MoreVertical } from 'lucide-react';
+import { Search, Plus, User, MoreVertical, UserPlus } from 'lucide-react';
+import AddStudentModal from '../components/AddStudentModal';
+import AddGuestModal from '../components/AddGuestModal';
 
 const StudentsList = () => {
   const [students, setStudents] = useState([]);
   const [search, setSearch] = useState('');
+  const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
+  const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
+
+  const fetchStudents = async () => {
+    try {
+      const res = await axios.get('https://printtrack-pro-api.onrender.com/api/students');
+      setStudents(res.data);
+    } catch (error) {
+      console.error("Error fetching students", error);
+    }
+  };
 
   useEffect(() => {
-    const fetchStudents = async () => {
-      try {
-        const res = await axios.get('https://printtrack-pro-api.onrender.com/api/students');
-        setStudents(res.data);
-      } catch (error) {
-        console.error("Error fetching students", error);
-      }
-    };
     fetchStudents();
   }, []);
 
@@ -24,16 +29,27 @@ const StudentsList = () => {
   );
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-8">
-        <div>
+    <>
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col">
+        <div className="flex items-center justify-between mb-8">
+          <div>
           <h1 className="text-3xl font-bold text-white mb-2">Students</h1>
           <p className="text-textMuted">Manage all {students.length} students across all batches.</p>
         </div>
-        <button className="bg-primary hover:bg-primaryHover text-white px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-colors">
-          <Plus size={20} />
-          Add Student
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setIsStudentModalOpen(true)}
+            className="bg-primary hover:bg-primaryHover text-white px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-colors shadow-lg shadow-primary/20">
+            <Plus size={20} />
+            Add Student
+          </button>
+          <button 
+            onClick={() => setIsGuestModalOpen(true)}
+            className="bg-surfaceHighlight hover:bg-surfaceHighlight/80 text-white px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-colors border border-border">
+            <UserPlus size={20} />
+            Add Guest
+          </button>
+        </div>
       </div>
 
       <div className="glass-card flex-1 flex flex-col overflow-hidden">
@@ -105,6 +121,18 @@ const StudentsList = () => {
         </div>
       </div>
     </div>
+      
+      <AddStudentModal 
+        isOpen={isStudentModalOpen} 
+        onClose={() => setIsStudentModalOpen(false)} 
+        onSuccess={fetchStudents} 
+      />
+      <AddGuestModal 
+        isOpen={isGuestModalOpen} 
+        onClose={() => setIsGuestModalOpen(false)} 
+        onSuccess={fetchStudents} 
+      />
+    </>
   );
 };
 
