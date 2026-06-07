@@ -6,6 +6,7 @@ const IndividualReport = () => {
   const [students, setStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState('all');
   const [selectedBatchName, setSelectedBatchName] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
   // Edit Modal State
@@ -198,9 +199,17 @@ const IndividualReport = () => {
     if (selectedStudentId !== 'all') {
       result = result.filter(t => t.studentId === parseInt(selectedStudentId));
     }
+
+    if (searchTerm.trim() !== '') {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(t => 
+        (t.studentName && t.studentName.toLowerCase().includes(term)) ||
+        (t.description && t.description.toLowerCase().includes(term))
+      );
+    }
     
     return result;
-  }, [transactions, students, selectedBatchName, selectedStudentId]);
+  }, [transactions, students, selectedBatchName, selectedStudentId, searchTerm]);
 
   // Search and filter students in the dropdown
   const filteredSearchStudents = useMemo(() => {
@@ -236,6 +245,14 @@ const IndividualReport = () => {
         </div>
         
         <div className="flex flex-col sm:flex-row items-center gap-4">
+          <input 
+            type="text"
+            placeholder="Search student or description..."
+            className="bg-surface border border-border text-white rounded-lg px-4 py-2 outline-none focus:border-primary transition-colors text-sm w-full sm:w-auto"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+
           <div className="flex items-center gap-2">
             <label className="text-textMuted font-medium text-sm whitespace-nowrap">Filter by Batch:</label>
             <select 
