@@ -1,11 +1,15 @@
 using System;
 using System.Management;
 using System.Windows;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Threading.Tasks;
 
 namespace PrintTrackPro.Desktop
 {
     public partial class MainWindow : Window
     {
+        private const string LocalVersion = "1.0.6";
         private ManagementEventWatcher watcher;
 
         public MainWindow()
@@ -18,6 +22,9 @@ namespace PrintTrackPro.Desktop
             
             // Start pulling student data quietly in the background so it's instant!
             DataCache.StartAutoRefresh();
+            
+            // Check for updates quietly on startup
+            _ = CheckForUpdatesAsync();
             
             StartPrintWatcher();
         }
@@ -94,6 +101,87 @@ namespace PrintTrackPro.Desktop
             watcher?.Stop();
             watcher?.Dispose();
             base.OnClosed(e);
+        }
+
+        private async Task CheckForUpdatesAsync()
+        {
+            try
+            {
+                using var client = new HttpClient();
+                var response = await client.GetFromJsonAsync<UpdateInfo>("https://printtrack-pro-api.onrender.com/api/updates/latest");
+                if (response != null && IsNewerVersion(response.Version, LocalVersion))
+                {
+                    var result = MessageBox.Show(
+                        $"A new version of PrintTrack Pro (v{response.Version}) is available. Would you like to download and install it automatically now?",
+                        "Update Available",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Information);
+
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        await PerformUpdateAsync(response.DownloadUrl);
+                    }
+                }
+            }
+            catch
+            {
+                // Fail silently so it doesn't crash if offline
+            }
+        }
+
+        private bool IsNewerVersion(string serverVersion, string localVersion)
+        {
+            try
+            {
+                return new Version(serverVersion) > new Version(localVersion);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private async Task PerformUpdateAsync(string downloadUrl)
+        {
+            try
+            {
+                string currentExePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                string currentDir = System.IO.Path.GetDirectoryName(currentExePath);
+                string zipPath = System.IO.Path.Combine(currentDir, "update.zip");
+
+                // Download the update zip
+                using (var client = new HttpClient())
+                {
+                    var bytes = await client.GetByteArrayAsync(downloadUrl);
+                    await System.IO.File.WriteAllBytesAsync(zipPath, bytes);
+                }
+
+                // PowerShell command to wait, extract, delete zip, and restart
+                string arguments = $"-Command \"Start-Sleep -Seconds 2; Expand-Archive -Path '{zipPath}' -DestinationPath '{currentDir}' -Force; Remove-Item '{zipPath}'; Start-Process '{currentExePath}'\"";
+
+                System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = arguments,
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+
+                System.Diagnostics.Process.Start(psi);
+
+                // Exit immediately so file locks are released
+                Application.Current.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to download or install update: " + ex.Message, "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private class UpdateInfo
+        {
+            public string Version { get; set; } = string.Empty;
+            public string DownloadUrl { get; set; } = string.Empty;
         }
     }
 }
