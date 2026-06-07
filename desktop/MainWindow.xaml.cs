@@ -9,7 +9,7 @@ namespace PrintTrackPro.Desktop
 {
     public partial class MainWindow : Window
     {
-        private const string LocalVersion = "1.0.6";
+        private const string LocalVersion = "1.0.7";
         private ManagementEventWatcher watcher;
 
         public MainWindow()
