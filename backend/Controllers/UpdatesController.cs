@@ -11,7 +11,7 @@ namespace PrintTrackPro.Backend.Controllers
         {
             return Ok(new UpdateInfo
             {
-                Version = "1.0.9",
+                Version = "1.1.0",
                 DownloadUrl = "https://github.com/NCSM-9037/PrintTrackPro/raw/main/ReleaseBuild.zip"
             });
         }
