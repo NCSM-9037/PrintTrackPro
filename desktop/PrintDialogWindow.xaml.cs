@@ -29,6 +29,7 @@ namespace PrintTrackPro.Desktop
         private HwndSource _hwndSource = null;
         private int _selectedStudentId;
         private int _selectedBatchId;
+        private decimal _debtAmount = 0;
         
         // --- KEYBOARD HOOK STUFF ---
         private const int WH_KEYBOARD_LL = 13;
@@ -104,6 +105,32 @@ namespace PrintTrackPro.Desktop
                     try { _printJob?.InvokeMethod("Resume", null); } catch {}
                     this.Close();
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                }
+
+                // F12 -> Debt Pay and Proceed
+                if (key == Key.F12)
+                {
+                    Dispatcher.Invoke(() => 
+                    { 
+                        if (DebtPaymentPanel.Visibility == Visibility.Visible)
+                        {
+                            PayDebtAndProceed(); 
+                        }
+                    });
+                    return (IntPtr)1; // Consume key
+                }
+
+                // F9 -> Instant Free Print
+                if (key == Key.F9)
+                {
+                    Dispatcher.Invoke(() => 
+                    { 
+                        if (GatekeeperPanel.Visibility == Visibility.Visible)
+                        {
+                            InstantFreePrint(); 
+                        }
+                    });
+                    return (IntPtr)1; // Consume key
                 }
 
                 if (key == Key.LWin || key == Key.RWin || (isAlt && key == Key.Tab) || (isAlt && key == Key.F4) || key == Key.System)
@@ -238,10 +265,11 @@ namespace PrintTrackPro.Desktop
                     var studentDebt = debts.FirstOrDefault(d => d.StudentId == studentId && d.Amount > 0);
                     if (studentDebt != null)
                     {
-                        MessageBox.Show($"You have {studentDebt.Amount} rupees to pay to MHS PRINT", "Outstanding Debt", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        _allowClose = true;
-                        try { _printJob?.InvokeMethod("Delete", null); } catch {}
-                        this.Close();
+                        _debtAmount = studentDebt.Amount;
+                        TxtDebtMessage.Text = $"You have {studentDebt.Amount} rupees to pay to MHS PRINT";
+                        currentPanel.Visibility = Visibility.Collapsed;
+                        DebtPaymentPanel.Visibility = Visibility.Visible;
+                        UpdateDebtQrCode();
                         return;
                     }
                 }
@@ -251,6 +279,13 @@ namespace PrintTrackPro.Desktop
                 // Silently ignore if offline, let them proceed
             }
             statusBlock.Text = "";
+            
+            currentPanel.Visibility = Visibility.Collapsed;
+            FinishProceedToBilling();
+        }
+
+        private async void FinishProceedToBilling()
+        {
             int autoPages = AutoPages > 0 ? AutoPages : 1; // Default to 1 if auto-detect failed
             decimal autoCost = autoPages * 3;
 
@@ -258,8 +293,8 @@ namespace PrintTrackPro.Desktop
             {
                 var autoDto = new 
                 { 
-                    StudentId = studentId, 
-                    BatchId = batchId,
+                    StudentId = _selectedStudentId, 
+                    BatchId = _selectedBatchId,
                     TotalAmount = autoCost, 
                     Pages = autoPages,
                     Description = string.IsNullOrEmpty(DocumentName) ? "Unknown Document" : DocumentName,
@@ -289,7 +324,6 @@ namespace PrintTrackPro.Desktop
             EnableSystemBlock();
 
             // Move to final billing details
-            currentPanel.Visibility = Visibility.Collapsed;
             DetailsPanel.Visibility = Visibility.Visible;
             
             TxtHeader.Text = "Enter Print Details";
@@ -320,6 +354,51 @@ namespace PrintTrackPro.Desktop
         {
             _allowClose = true;
             try { _printJob?.InvokeMethod("Delete", null); } catch {}
+            this.Close();
+        }
+
+        private async void PayDebtAndProceed()
+        {
+            TxtDebtStatus.Text = "Processing payment...";
+            
+            bool isCash = RadioDebtCash.IsChecked == true;
+            bool isGpay = RadioDebtGpay.IsChecked == true;
+
+            try
+            {
+                var transactionDto = new 
+                { 
+                    StudentId = _selectedStudentId, 
+                    BatchId = _selectedBatchId,
+                    TotalAmount = 0, 
+                    Pages = 0,
+                    Description = "Debt Clearance",
+                    CashAmount = isCash ? _debtAmount : 0,
+                    GooglePayAmount = isGpay ? _debtAmount : 0
+                };
+                
+                var response = await client.PostAsJsonAsync("transactions/process", transactionDto);
+                if (response.IsSuccessStatusCode)
+                {
+                    // Proceed to normal billing
+                    DebtPaymentPanel.Visibility = Visibility.Collapsed;
+                    FinishProceedToBilling();
+                }
+                else
+                {
+                    TxtDebtStatus.Text = "Failed to process debt. Network error.";
+                }
+            }
+            catch (Exception ex)
+            {
+                TxtDebtStatus.Text = "Error: " + ex.Message;
+            }
+        }
+        
+        private void InstantFreePrint()
+        {
+            _allowClose = true;
+            try { _printJob?.InvokeMethod("Resume", null); } catch {}
             this.Close();
         }
 
@@ -433,6 +512,52 @@ namespace PrintTrackPro.Desktop
             else
             {
                 ImgQrCode.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void DebtPaymentMethod_Changed(object sender, RoutedEventArgs e)
+        {
+            UpdateDebtQrCode();
+        }
+
+        private void UpdateDebtQrCode()
+        {
+            if (ImgDebtQrCode == null) return;
+            
+            if (RadioDebtGpay?.IsChecked == true && _debtAmount > 0)
+            {
+                string upiId = "example@upi";
+                string configPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "UpiID.txt");
+                if (System.IO.File.Exists(configPath))
+                {
+                    string fileUpi = System.IO.File.ReadAllText(configPath).Trim();
+                    if (!string.IsNullOrEmpty(fileUpi)) upiId = fileUpi;
+                }
+
+                string upiUrl = $"upi://pay?pa={upiId}&pn=PrintTrackPro&am={_debtAmount}&cu=INR";
+
+                using (QRCodeGenerator qrGenerator = new QRCodeGenerator())
+                using (QRCodeData qrCodeData = qrGenerator.CreateQrCode(upiUrl, QRCodeGenerator.ECCLevel.Q))
+                using (PngByteQRCode qrCode = new PngByteQRCode(qrCodeData))
+                {
+                    byte[] qrCodeImage = qrCode.GetGraphic(20);
+                    using (MemoryStream stream = new MemoryStream(qrCodeImage))
+                    {
+                        BitmapImage bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.StreamSource = stream;
+                        bitmap.EndInit();
+                        bitmap.Freeze();
+                        
+                        ImgDebtQrCode.Source = bitmap;
+                        ImgDebtQrCode.Visibility = Visibility.Visible;
+                    }
+                }
+            }
+            else
+            {
+                ImgDebtQrCode.Visibility = Visibility.Collapsed;
             }
         }
 
