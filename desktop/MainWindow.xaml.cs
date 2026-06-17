@@ -83,10 +83,16 @@ namespace PrintTrackPro.Desktop
                     // If pausing fails, we still show the popup
                 }
 
+                uint jobId = 0;
+                if (targetInstance["JobId"] != null)
+                {
+                    uint.TryParse(targetInstance["JobId"].ToString(), out jobId);
+                }
+
                 // Since this runs on a background thread, we must invoke the UI thread to show the popup
                 Application.Current.Dispatcher.Invoke(() =>
                 {
-                    var dialog = new PrintDialogWindow(document, pages, targetInstance);
+                    var dialog = new PrintDialogWindow(jobId, document, pages);
                     dialog.ShowDialog();
                 });
             }

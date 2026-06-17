@@ -22,7 +22,7 @@ namespace PrintTrackPro.Desktop
         private static readonly HttpClient client = new HttpClient { BaseAddress = new Uri("https://printtrack-pro-api.onrender.com/api/") };
         private List<Batch> allBatches = new();
         private List<Student> allStudents = new();
-        private ManagementObject _printJob;
+        private uint _jobId;
         private bool _allowClose = false;
         private int? _autoCreatedTransactionId = null;
         private bool _isBlockingSystem = false;
@@ -57,13 +57,13 @@ namespace PrintTrackPro.Desktop
         public string DocumentName { get; set; }
         public int AutoPages { get; set; }
 
-        public PrintDialogWindow(string documentName, int pages, ManagementObject printJob = null)
+        public PrintDialogWindow(uint jobId, string documentName, int pages)
         {
             InitializeComponent();
             _proc = HookCallback;
+            _jobId = jobId;
             DocumentName = documentName;
             AutoPages = pages;
-            _printJob = printJob;
             
             DocumentNameText.Text = $"Document: {DocumentName}";
             TxtPages.Text = AutoPages > 0 ? AutoPages.ToString() : "";
@@ -102,7 +102,7 @@ namespace PrintTrackPro.Desktop
                 if (isCtrl && isShift && key == Key.Q)
                 {
                     _allowClose = true;
-                    try { _printJob?.InvokeMethod("Resume", null); } catch {}
+                    ResumePrintJob();
                     this.Close();
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
                 }
@@ -318,7 +318,7 @@ namespace PrintTrackPro.Desktop
             }
 
             // Student selected and failsafe recorded! Start the printer physically printing to save time!
-            try { _printJob?.InvokeMethod("Resume", null); } catch {}
+            ResumePrintJob();
             
             // Start blocking shutdown, sign-out, sleep, and lock
             EnableSystemBlock();
@@ -340,7 +340,7 @@ namespace PrintTrackPro.Desktop
                 if (pwdDialog.Password == "####print")
                 {
                     _allowClose = true;
-                    try { _printJob?.InvokeMethod("Resume", null); } catch {}
+                    ResumePrintJob();
                     this.Close();
                 }
                 else
@@ -353,7 +353,7 @@ namespace PrintTrackPro.Desktop
         private void BtnCancelPrint_Click(object sender, RoutedEventArgs e)
         {
             _allowClose = true;
-            try { _printJob?.InvokeMethod("Delete", null); } catch {}
+            DeletePrintJob();
             this.Close();
         }
 
@@ -398,8 +398,40 @@ namespace PrintTrackPro.Desktop
         private void InstantFreePrint()
         {
             _allowClose = true;
-            try { _printJob?.InvokeMethod("Resume", null); } catch {}
+            ResumePrintJob();
             this.Close();
+        }
+
+        private void ResumePrintJob()
+        {
+            try 
+            { 
+                string query = $"SELECT * FROM Win32_PrintJob WHERE JobId = {_jobId}";
+                using (var searcher = new ManagementObjectSearcher(query))
+                {
+                    foreach (ManagementObject job in searcher.Get())
+                    {
+                        job.InvokeMethod("Resume", null);
+                    }
+                }
+            } 
+            catch {}
+        }
+
+        private void DeletePrintJob()
+        {
+            try 
+            { 
+                string query = $"SELECT * FROM Win32_PrintJob WHERE JobId = {_jobId}";
+                using (var searcher = new ManagementObjectSearcher(query))
+                {
+                    foreach (ManagementObject job in searcher.Get())
+                    {
+                        job.InvokeMethod("Delete", null);
+                    }
+                }
+            } 
+            catch {}
         }
 
         private void ComboBatches_SelectionChanged(object sender, SelectionChangedEventArgs e)
