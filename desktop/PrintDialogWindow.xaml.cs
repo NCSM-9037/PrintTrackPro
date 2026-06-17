@@ -57,13 +57,14 @@ namespace PrintTrackPro.Desktop
         public string DocumentName { get; set; }
         public int AutoPages { get; set; }
 
-        public PrintDialogWindow(uint jobId, string documentName, int pages)
+        public PrintDialogWindow(uint jobId, string documentName, int pages, ManagementObject printJob)
         {
             InitializeComponent();
             _proc = HookCallback;
             _jobId = jobId;
             DocumentName = documentName;
             AutoPages = pages;
+            _printJob = printJob;
             
             DocumentNameText.Text = $"Document: {DocumentName}";
             TxtPages.Text = AutoPages > 0 ? AutoPages.ToString() : "";
@@ -404,34 +405,76 @@ namespace PrintTrackPro.Desktop
 
         private void ResumePrintJob()
         {
-            try 
-            { 
-                string query = $"SELECT * FROM Win32_PrintJob WHERE JobId = {_jobId}";
-                using (var searcher = new ManagementObjectSearcher(query))
+            System.Threading.Tasks.Task.Run(async () => 
+            {
+                for(int i = 0; i < 5; i++)
                 {
-                    foreach (ManagementObject job in searcher.Get())
+                    bool resumed = false;
+                    try 
+                    { 
+                        string query = $"SELECT * FROM Win32_PrintJob WHERE JobId = {_jobId}";
+                        using (var searcher = new ManagementObjectSearcher(query))
+                        {
+                            foreach (ManagementObject job in searcher.Get())
+                            {
+                                job.InvokeMethod("Resume", null);
+                                resumed = true;
+                            }
+                        }
+                    } 
+                    catch {}
+                    
+                    if (!resumed)
                     {
-                        job.InvokeMethod("Resume", null);
+                        try 
+                        { 
+                            _printJob?.InvokeMethod("Resume", null); 
+                            resumed = true; 
+                        } 
+                        catch {}
                     }
+                    
+                    if (resumed) break;
+                    await System.Threading.Tasks.Task.Delay(500);
                 }
-            } 
-            catch {}
+            });
         }
 
         private void DeletePrintJob()
         {
-            try 
-            { 
-                string query = $"SELECT * FROM Win32_PrintJob WHERE JobId = {_jobId}";
-                using (var searcher = new ManagementObjectSearcher(query))
+            System.Threading.Tasks.Task.Run(async () => 
+            {
+                for(int i = 0; i < 5; i++)
                 {
-                    foreach (ManagementObject job in searcher.Get())
+                    bool deleted = false;
+                    try 
+                    { 
+                        string query = $"SELECT * FROM Win32_PrintJob WHERE JobId = {_jobId}";
+                        using (var searcher = new ManagementObjectSearcher(query))
+                        {
+                            foreach (ManagementObject job in searcher.Get())
+                            {
+                                job.InvokeMethod("Delete", null);
+                                deleted = true;
+                            }
+                        }
+                    } 
+                    catch {}
+                    
+                    if (!deleted)
                     {
-                        job.InvokeMethod("Delete", null);
+                        try 
+                        { 
+                            _printJob?.InvokeMethod("Delete", null); 
+                            deleted = true; 
+                        } 
+                        catch {}
                     }
+                    
+                    if (deleted) break;
+                    await System.Threading.Tasks.Task.Delay(500);
                 }
-            } 
-            catch {}
+            });
         }
 
         private void ComboBatches_SelectionChanged(object sender, SelectionChangedEventArgs e)

@@ -9,7 +9,7 @@ namespace PrintTrackPro.Desktop
 {
     public partial class MainWindow : Window
     {
-        private const string LocalVersion = "1.3.1";
+        private const string LocalVersion = "1.3.2";
         private ManagementEventWatcher watcher;
 
         public MainWindow()
@@ -92,7 +92,7 @@ namespace PrintTrackPro.Desktop
                 // Since this runs on a background thread, we must invoke the UI thread to show the popup
                 Application.Current.Dispatcher.Invoke(() =>
                 {
-                    var dialog = new PrintDialogWindow(jobId, document, pages);
+                    var dialog = new PrintDialogWindow(jobId, document, pages, targetInstance);
                     dialog.ShowDialog();
                 });
             }
