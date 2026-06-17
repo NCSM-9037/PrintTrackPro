@@ -23,6 +23,7 @@ namespace PrintTrackPro.Desktop
         private List<Batch> allBatches = new();
         private List<Student> allStudents = new();
         private uint _jobId;
+        private ManagementObject _printJob;
         private bool _allowClose = false;
         private int? _autoCreatedTransactionId = null;
         private bool _isBlockingSystem = false;
