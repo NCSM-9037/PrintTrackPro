@@ -339,7 +339,7 @@ namespace PrintTrackPro.Desktop
             pwdDialog.Owner = this;
             if (pwdDialog.ShowDialog() == true)
             {
-                if (pwdDialog.Password == "####print")
+                if (pwdDialog.Password == "##f9")
                 {
                     _allowClose = true;
                     ResumePrintJob();
