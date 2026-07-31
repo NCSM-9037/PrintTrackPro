@@ -9,7 +9,7 @@ namespace PrintTrackPro.Desktop
 {
     public partial class MainWindow : Window
     {
-        private const string LocalVersion = "1.3.3";
+        private const string LocalVersion = "1.3.4";
         private ManagementEventWatcher watcher;
 
         public MainWindow()
@@ -49,17 +49,15 @@ namespace PrintTrackPro.Desktop
             try
             {
                 ManagementBaseObject baseObject = (ManagementBaseObject)e.NewEvent["TargetInstance"];
-                string path = baseObject.SystemProperties["__PATH"]?.Value?.ToString() ?? baseObject.SystemProperties["__RELPATH"]?.Value?.ToString();
-                ManagementObject targetInstance = new ManagementObject(path);
-                string document = targetInstance["Document"]?.ToString() ?? "Unknown Document";
+                string document = baseObject["Document"]?.ToString() ?? "Unknown Document";
 
                 int pages = 0;
-                if (targetInstance["TotalPages"] != null)
+                if (baseObject["TotalPages"] != null)
                 {
-                    int.TryParse(targetInstance["TotalPages"].ToString(), out pages);
+                    int.TryParse(baseObject["TotalPages"].ToString(), out pages);
                 }
 
-                string jobName = targetInstance["Name"]?.ToString() ?? "";
+                string jobName = baseObject["Name"]?.ToString() ?? "";
                 string printerName = jobName.Contains(",") ? jobName.Split(',')[0] : jobName;
                 
                 // Read TargetPrinter.txt to see if we should filter
@@ -73,20 +71,30 @@ namespace PrintTrackPro.Desktop
                     }
                 }
 
+                uint jobId = 0;
+                if (baseObject["JobId"] != null)
+                {
+                    uint.TryParse(baseObject["JobId"].ToString(), out jobId);
+                }
+
+                ManagementObject targetInstance = null;
                 // IMPORTANT: Physically PAUSE the print job in the spooler so it doesn't print!
                 try
                 {
-                    targetInstance.InvokeMethod("Pause", null);
+                    targetInstance = e.NewEvent["TargetInstance"] as ManagementObject;
+                    if (targetInstance == null)
+                    {
+                        string path = baseObject.SystemProperties["__PATH"]?.Value?.ToString() ?? baseObject.SystemProperties["__RELPATH"]?.Value?.ToString();
+                        if (!string.IsNullOrEmpty(path))
+                        {
+                            targetInstance = new ManagementObject(path);
+                        }
+                    }
+                    targetInstance?.InvokeMethod("Pause", null);
                 }
                 catch
                 {
                     // If pausing fails, we still show the popup
-                }
-
-                uint jobId = 0;
-                if (targetInstance["JobId"] != null)
-                {
-                    uint.TryParse(targetInstance["JobId"].ToString(), out jobId);
                 }
 
                 // Since this runs on a background thread, we must invoke the UI thread to show the popup
@@ -96,9 +104,14 @@ namespace PrintTrackPro.Desktop
                     dialog.ShowDialog();
                 });
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore silent errors from spooler
+                // Ignore silent errors from spooler, but optionally log them to a file for debugging
+                try
+                {
+                    System.IO.File.AppendAllText("print_error_log.txt", DateTime.Now.ToString() + ": " + ex.ToString() + "\n");
+                }
+                catch { }
             }
         }
 
