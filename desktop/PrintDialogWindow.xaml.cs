@@ -122,8 +122,8 @@ namespace PrintTrackPro.Desktop
                     return (IntPtr)1; // Consume key
                 }
 
-                // F9 -> Instant Free Print
-                if (key == Key.F9)
+                // Ctrl + Alt + Shift + P -> Instant Free Print (Advanced Level)
+                if (isCtrl && isAlt && isShift && key == Key.P)
                 {
                     Dispatcher.Invoke(() => 
                     { 
