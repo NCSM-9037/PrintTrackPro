@@ -45,6 +45,11 @@ namespace PrintTrackPro.Backend.Services
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+                // Pre-fetch all batches and students into memory to avoid N+1 queries 
+                // which consumes massive amounts of Supabase egress bandwidth.
+                var allBatches = await db.Batches.ToDictionaryAsync(b => b.BatchName.ToLower(), cancellationToken);
+                var allStudents = await db.Students.Include(s => s.Batch).ToListAsync(cancellationToken);
+
                 foreach (var document in snapshot.Documents)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -62,10 +67,7 @@ namespace PrintTrackPro.Backend.Services
                     name = name.Trim();
                     batchName = batchName.Trim();
 
-                    var batch = await db.Batches
-                        .FirstOrDefaultAsync(b => b.BatchName.ToLower() == batchName.ToLower(), cancellationToken);
-
-                    if (batch == null)
+                    if (!allBatches.TryGetValue(batchName.ToLower(), out var batch))
                     {
                         batch = new Batch
                         {
@@ -76,6 +78,7 @@ namespace PrintTrackPro.Backend.Services
 
                         db.Batches.Add(batch);
                         await db.SaveChangesAsync(cancellationToken);
+                        allBatches[batchName.ToLower()] = batch;
                         result.BatchesCreated++;
                     }
 
@@ -84,12 +87,9 @@ namespace PrintTrackPro.Backend.Services
                         ? CreateStableStudentId(document.Id, name, batchName)
                         : sourceStudentId.Trim();
 
-                    var existingStudent = await db.Students
-                        .Include(s => s.Batch)
-                        .FirstOrDefaultAsync(s =>
+                    var existingStudent = allStudents.FirstOrDefault(s =>
                             s.StudentId == studentId ||
-                            (s.Name.ToLower() == name.ToLower() && s.BatchId == batch.Id),
-                            cancellationToken);
+                            (s.Name.ToLower() == name.ToLower() && s.BatchId == batch.Id));
 
                     var phoneNumber = GetString(document, "phoneNumber", "phone", "mobile") ?? string.Empty;
                     var email = GetString(document, "email") ?? string.Empty;
@@ -97,7 +97,7 @@ namespace PrintTrackPro.Backend.Services
 
                     if (existingStudent == null)
                     {
-                        db.Students.Add(new Student
+                        var newStudent = new Student
                         {
                             StudentId = studentId,
                             Name = name,
@@ -106,7 +106,9 @@ namespace PrintTrackPro.Backend.Services
                             Email = email,
                             Status = status,
                             CreatedAt = DateTime.UtcNow
-                        });
+                        };
+                        db.Students.Add(newStudent);
+                        allStudents.Add(newStudent);
                         result.StudentsCreated++;
                         continue;
                     }
